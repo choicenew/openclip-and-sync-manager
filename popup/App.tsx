@@ -19,18 +19,18 @@ import { modals } from "@mantine/modals";
 import {
   IconBookmark,
   IconBrandGithub,
-  IconChartBar,
+  IconActivity,
   IconClipboardList,
-  IconCloud,
+  IconCloudComputing,
   IconCrown,
-  IconDeviceDesktop,
+  IconDevices,
   IconGlobe,
   IconHeart,
   IconHistory,
   IconPictureInPicture,
   IconPuzzle,
   IconSearch,
-  IconSettings,
+  IconAdjustmentsHorizontal,
   IconShield,
 } from "@tabler/icons-react";
 import iconSrc from "data-base64:~assets/icon.png";
@@ -220,7 +220,7 @@ export const App = () => {
                   })
                 }
               >
-                <IconChartBar size="1.125rem" />
+                <IconActivity size="1.125rem" />
               </ActionIcon>
             </Tooltip>
 
@@ -238,7 +238,7 @@ export const App = () => {
                   })
                 }
               >
-                <IconSettings size="1.125rem" />
+                <IconAdjustmentsHorizontal size="1.125rem" />
               </ActionIcon>
             </Tooltip>
             <Divider orientation="vertical" h={16} sx={{ alignSelf: "inherit" }} />
@@ -312,7 +312,7 @@ export const App = () => {
               {
                 label: (
                   <Group align="center" spacing={4} noWrap>
-                    <IconCloud size="0.85rem" />
+                    <IconCloudComputing size="0.85rem" />
                     <Text size="xs">☁️ 云同步</Text>
                   </Group>
                 ),
@@ -357,7 +357,7 @@ export const App = () => {
               {
                 label: (
                   <Group align="center" spacing={4} noWrap>
-                    <IconDeviceDesktop size="0.85rem" />
+                    <IconDevices size="0.85rem" />
                     <Text size="xs">💻 设备墙</Text>
                   </Group>
                 ),
@@ -366,7 +366,7 @@ export const App = () => {
               {
                 label: (
                   <Group align="center" spacing={4} noWrap>
-                    <IconSettings size="0.85rem" />
+                    <IconAdjustmentsHorizontal size="0.85rem" />
                     <Text size="xs">⚙️ 设置</Text>
                   </Group>
                 ),
