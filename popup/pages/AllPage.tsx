@@ -2,14 +2,22 @@ import { useAtomValue } from "jotai";
 
 import { EntryList } from "~popup/components/EntryList";
 import { NoEntriesOverlay } from "~popup/components/NoEntriesOverlay";
-import { entriesAtom, entryIdToTagsAtom, searchAtom } from "~popup/states/atoms";
+import { entriesAtom, entryIdToTagsAtom, pinnedEntryIdsAtom, searchAtom } from "~popup/states/atoms";
 
 export const AllPage = () => {
   const entries = useAtomValue(entriesAtom) || [];
   const search = useAtomValue(searchAtom);
   const entryIdToTags = useAtomValue(entryIdToTagsAtom) || {};
+  const pinnedEntryIds = useAtomValue(pinnedEntryIdsAtom) || [];
+  const pinnedSet = new Set(pinnedEntryIds);
 
-  const reversedEntries = [...entries].reverse();
+  const sortedEntries = [...entries].reverse().sort((a, b) => {
+    const aPinned = pinnedSet.has(a.id);
+    const bPinned = pinnedSet.has(b.id);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return 0;
+  });
 
   return (
     <EntryList
@@ -23,7 +31,7 @@ export const AllPage = () => {
           <NoEntriesOverlay title={`未找到包含 "${search}" 的记录`} />
         )
       }
-      entries={reversedEntries.filter(
+      entries={sortedEntries.filter(
         (entry) =>
           search.length === 0 ||
           entry.content.toLowerCase().includes(search.toLowerCase()) ||

@@ -12,7 +12,10 @@ import {
   Tooltip,
   useMantineTheme,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
+  IconCloudDownload,
+  IconCloudUpload,
   IconDeviceDesktop,
   IconExternalLink,
   IconGlobe,
@@ -23,6 +26,7 @@ import { useEffect, useState } from "react";
 
 import { getSyncedSessions } from "~storage/syncedSessions";
 import { getSyncSettings } from "~storage/syncSettings";
+import { runFullSync } from "~utils/sync/engine";
 import {
   exportCurrentTabs,
   openSessionTabs,
@@ -73,9 +77,34 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
     setLoading(false);
   };
 
+  const [syncing, setSyncing] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
+
+  const handlePullSessions = async () => {
+    setSyncing(true);
+    const res = await runFullSync();
+    await loadData();
+    setSyncing(false);
+    notifications.show({
+      title: res.success ? "会话拉取成功" : "同步提示",
+      message: res.success ? "已成功拉取云端跨设备活跃标签页！" : res.message,
+      color: res.success ? "teal" : "red",
+    });
+  };
+
+  const handlePushSessions = async () => {
+    setSyncing(true);
+    const res = await runFullSync();
+    setSyncing(false);
+    notifications.show({
+      title: res.success ? "会话推送成功" : "推送提示",
+      message: res.success ? "已成功将本机打开的标签页同步推送至云端！" : res.message,
+      color: res.success ? "teal" : "red",
+    });
+  };
 
   const handleOpenTab = (url: string) => {
     chrome.tabs.create({ url });
@@ -102,16 +131,37 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
             跨端浏览器会话与打开的标签页 (Sync Sessions)
           </Text>
         </Group>
-        <Button
-          size="xs"
-          variant="light"
-          color="cyan"
-          leftIcon={<IconRefresh size={14} />}
-          loading={loading}
-          onClick={loadData}
-        >
-          刷新会话标签
-        </Button>
+        <Group spacing={6}>
+          <Button
+            size="xs"
+            variant="light"
+            color="indigo"
+            leftIcon={<IconCloudDownload size={14} />}
+            loading={syncing}
+            onClick={handlePullSessions}
+          >
+            📥 拉取云端会话
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            color="cyan"
+            leftIcon={<IconCloudUpload size={14} />}
+            loading={syncing}
+            onClick={handlePushSessions}
+          >
+            📤 推送本机会话
+          </Button>
+          <Button
+            size="xs"
+            variant="subtle"
+            leftIcon={<IconRefresh size={14} />}
+            loading={loading}
+            onClick={loadData}
+          >
+            刷新
+          </Button>
+        </Group>
       </Group>
 
       {/* 本机打开的标签页汇总面板 */}

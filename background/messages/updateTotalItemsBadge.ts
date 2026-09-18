@@ -12,16 +12,17 @@ export type UpdateTotalItemsBadgeRequestBody = undefined;
 export type UpdateTotalItemsBadgeResponseBody = Record<PropertyKey, never>;
 
 export const handleUpdateTotalItemsBadgeRequest = async (totalLocalEntries: number) => {
-  const [settings, refreshToken, user] = await Promise.all([
-    getSettings(),
-    getRefreshToken(),
-    db.getAuth(),
-  ]);
+  const settings = await getSettings();
 
   if (!settings.totalItemsBadge) {
     await removeActionBadgeText();
     return;
   }
+
+  const [refreshToken, user] = await Promise.all([
+    getRefreshToken(),
+    db.getAuth(),
+  ]);
 
   if (refreshToken === null || user === null || db._reactor.status === "closed") {
     await setActionBadgeText(totalLocalEntries);
