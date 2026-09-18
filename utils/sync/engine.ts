@@ -4,9 +4,11 @@
  *       会话 (sessions.json)、扩展 (extensions.json)、主控规则 (master_config.json)
  */
 
+import { getSettings } from "~storage/settings";
 import { getSyncSettings, setSyncStatus } from "~storage/syncSettings";
+import { setSyncedSessions } from "~storage/syncedSessions";
 import { getLocalAsCloudData, saveCloudDataToLocal } from "~utils/db/core";
-import { exportBookmarksTree, type SyncBookmark } from "./handlers/bookmarks";
+import { exportBookmarksTree, syncRemoteBookmarksToLocal, type SyncBookmark } from "./handlers/bookmarks";
 import { exportExtensions, type SyncExtension } from "./handlers/extensions";
 import { exportHistory, importHistory, type SyncHistoryItem } from "./handlers/history";
 import { exportSession, type SyncSession } from "./handlers/sessions";
@@ -23,26 +25,37 @@ export interface MultiModalSyncPayload extends CloudData {
 
 /** 打包本地全模态同步数据 */
 export async function getLocalMultiModalPayload(): Promise<MultiModalSyncPayload> {
-  const [baseCloudData, syncSettings] = await Promise.all([
+  const [baseCloudData, syncSettings, sysSettings] = await Promise.all([
     getLocalAsCloudData(),
     getSyncSettings(),
+    getSettings(),
   ]);
 
   const deviceId = syncSettings.deviceId || "local_device";
   const deviceName = syncSettings.deviceName || "此设备";
+  const modalities = sysSettings.syncModalities || {
+    clipboard: true,
+    bookmarks: true,
+    sessions: true,
+    history: true,
+    extensions: true,
+  };
 
   const [bookmarks, history, currentSession, extensions] = await Promise.all([
-    exportBookmarksTree(),
-    exportHistory(30),
-    exportSession(deviceId, deviceName),
-    exportExtensions(),
+    modalities.bookmarks ? exportBookmarksTree() : Promise.resolve([]),
+    modalities.history ? exportHistory(30) : Promise.resolve([]),
+    modalities.sessions
+      ? exportSession(deviceId, deviceName)
+      : Promise.resolve({ id: "", deviceId, deviceName, savedAt: "", tabs: [] }),
+    modalities.extensions ? exportExtensions() : Promise.resolve([]),
   ]);
 
   return {
     ...baseCloudData,
+    entries: modalities.clipboard ? baseCloudData.entries : [],
     bookmarks,
     history,
-    sessions: currentSession.tabs.length > 0 ? [currentSession] : [],
+    sessions: currentSession.tabs?.length > 0 ? [currentSession] : [],
     extensions,
   };
 }
@@ -59,6 +72,14 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
 
   try {
     const localPayload = await getLocalMultiModalPayload();
+    const sysSettings = await getSettings();
+    const modalities = sysSettings.syncModalities || {
+      clipboard: true,
+      bookmarks: true,
+      sessions: true,
+      history: true,
+      extensions: true,
+    };
 
     // 1. 拉取远程数据并应用主辅设备规则
     let remoteRaw: any = { entries: [], settings: [], devices: [] };
@@ -89,8 +110,14 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
     await provider.push(pushPayload);
     await saveCloudDataToLocal(mergedBase);
 
-    // 4. 后台写回历史记录
-    if (remoteRaw?.history?.length) {
+    // 4. 后台同步写回书签、会话、历史记录到本机
+    if (remoteRaw?.bookmarks?.length && modalities.bookmarks !== false) {
+      syncRemoteBookmarksToLocal(remoteRaw.bookmarks).catch(() => {});
+    }
+    if (remoteRaw?.sessions?.length && modalities.sessions !== false) {
+      setSyncedSessions(remoteRaw.sessions).catch(() => {});
+    }
+    if (remoteRaw?.history?.length && modalities.history !== false) {
       importHistory(remoteRaw.history).catch(() => {});
     }
 

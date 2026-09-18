@@ -192,19 +192,23 @@ export const createEntry = async (content: string, storageLocation: StorageLocat
   ]);
 
   const entryId = createHash("sha256").update(content).digest("hex");
+  const now = Date.now();
+  const shouldDeduplicate = settings.deduplicateEntries !== false;
 
-  const entry = entries.find((entry) => entry.id === entryId);
-  if (entry === undefined) {
-    const now = Date.now();
-
+  const existingIndex = entries.findIndex((entry) => entry.id === entryId || entry.content === content);
+  if (shouldDeduplicate && existingIndex !== -1 && entries[existingIndex]) {
+    const existingEntry = entries[existingIndex]!;
+    entries.splice(existingIndex, 1);
+    existingEntry.copiedAt = now;
+    existingEntry.createdAt = now;
+    entries.push(existingEntry);
+  } else {
     entries.push({
       id: entryId,
       createdAt: now,
       copiedAt: now,
       content,
     });
-  } else {
-    entry.copiedAt = Date.now();
   }
 
   const [newEntries, skippedEntryIds] = applyLocalItemLimit(

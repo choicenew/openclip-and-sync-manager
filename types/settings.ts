@@ -44,6 +44,14 @@ export const defaultSettings = {
   enableCompression: true,
   enableBlacklistFilter: false,
   blacklistRules: defaultBlacklistRules,
+  deduplicateEntries: true,
+  syncModalities: {
+    clipboard: true,
+    bookmarks: true,
+    sessions: true,
+    history: true,
+    extensions: true,
+  },
   syncDeviceFilter: "all",
   displayMode: DisplayMode.Enum.Popup,
   language: "auto",
@@ -54,6 +62,14 @@ export const BlacklistRuleSchema = z.object({
   name: z.string(),
   keywords: z.array(z.string()),
   enabled: z.boolean(),
+});
+
+export const SyncModalitiesSchema = z.object({
+  clipboard: z.boolean().default(true),
+  bookmarks: z.boolean().default(true),
+  sessions: z.boolean().default(true),
+  history: z.boolean().default(true),
+  extensions: z.boolean().default(true),
 });
 
 export const Settings = z
@@ -73,6 +89,8 @@ export const Settings = z
     enableCompression: z.boolean().default(defaultSettings.enableCompression),
     enableBlacklistFilter: z.boolean().default(defaultSettings.enableBlacklistFilter),
     blacklistRules: z.array(BlacklistRuleSchema).default(defaultSettings.blacklistRules),
+    deduplicateEntries: z.boolean().default(defaultSettings.deduplicateEntries),
+    syncModalities: SyncModalitiesSchema.default(defaultSettings.syncModalities),
     syncDeviceFilter: z.string().default(defaultSettings.syncDeviceFilter),
     displayMode: DisplayMode.default(defaultSettings.displayMode),
     language: z.string().default(defaultSettings.language),
