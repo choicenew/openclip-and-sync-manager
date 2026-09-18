@@ -72,6 +72,11 @@ export async function processMasterSlaveRulesOnPull(
 
       const recipientRule = cloudLock.deviceRules?.[currentDeviceId];
 
+      // 若主设备对该从设备开启了【封禁/禁用】开关
+      if (recipientRule && recipientRule.enabled === false) {
+        return { processedEntries: [], masterState: updatedState };
+      }
+
       // 依据主设备下发给该特定从设备的模态 x 源设备规则进行拦截
       const filteredEntries = rawEntries.filter((entry) => {
         if (!entry.deviceId) return true;

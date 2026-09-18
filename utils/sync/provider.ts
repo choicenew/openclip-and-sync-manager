@@ -811,6 +811,260 @@ export const createGoogleDriveProvider = (
 };
 
 // ─────────────────────────────────────────────
+// 5. GitHub Gist Sync Provider
+// ─────────────────────────────────────────────
+export const createGistProvider = (token: string, gistId: string): SyncProvider => {
+  const fileName = "openclip-sync.json";
+  return {
+    name: "GitHub Gist",
+    async isAvailable() {
+      return !!token;
+    },
+    async pull() {
+      if (!token || !gistId) return { entries: [], settings: [], devices: [] };
+      try {
+        const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/vnd.github.v3+json",
+          },
+        });
+        if (!resp.ok) throw new Error(`GitHub Gist HTTP Error ${resp.status}`);
+        const data = await resp.json();
+        const file = data?.files?.[fileName];
+        if (!file || !file.content) return { entries: [], settings: [], devices: [] };
+        const payloadData = await parseRemotePayload(file.content);
+        await updateProviderStatus("gist", {
+          lastSyncTime: Date.now(),
+          status: "success",
+          message: "拉取成功",
+          itemCount: payloadData.entries.length,
+        });
+        return payloadData;
+      } catch (e: any) {
+        await updateProviderStatus("gist", {
+          status: "error",
+          message: e?.message || "Gist 拉取失败",
+        });
+        throw e;
+      }
+    },
+    async push(data) {
+      if (!token) return;
+      try {
+        const settings = await getSettings();
+        const prunedEntries = pruneExpiredAndOversizedEntries(
+          data.entries || [],
+          settings.historyRetentionDays,
+          settings.localItemCharacterLimit,
+        );
+        const payloadData = { ...data, entries: prunedEntries };
+        const contentStr = JSON.stringify(payloadData, null, 2);
+
+        if (!gistId) {
+          // 创建新 Gist
+          const resp = await fetch("https://api.github.com/gists", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              Accept: "application/vnd.github.v3+json",
+            },
+            body: JSON.stringify({
+              description: "OpenClip Sync Clipboard & Multi-Modal Backup",
+              public: false,
+              files: { [fileName]: { content: contentStr } },
+            }),
+          });
+          if (!resp.ok) throw new Error(`GitHub Gist Create Error ${resp.status}`);
+          const created = await resp.json();
+          if (created?.id) {
+            await setSyncSettings({ gistId: created.id });
+          }
+        } else {
+          // 更新已有 Gist
+          const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              Accept: "application/vnd.github.v3+json",
+            },
+            body: JSON.stringify({
+              files: { [fileName]: { content: contentStr } },
+            }),
+          });
+          if (!resp.ok) throw new Error(`GitHub Gist Update Error ${resp.status}`);
+        }
+        await updateProviderStatus("gist", {
+          lastSyncTime: Date.now(),
+          status: "success",
+          message: "同步更新成功",
+          itemCount: payloadData.entries.length,
+        });
+      } catch (e: any) {
+        await updateProviderStatus("gist", {
+          status: "error",
+          message: e?.message || "Gist 更新失败",
+        });
+        throw e;
+      }
+    },
+  };
+};
+
+// ─────────────────────────────────────────────
+// 6. AWS S3 / MinIO / OSS Compatible Storage Provider
+// ─────────────────────────────────────────────
+export const createS3Provider = (
+  endpoint: string,
+  bucket: string,
+  accessKeyId: string,
+  secretAccessKey: string,
+  region: string = "us-east-1",
+): SyncProvider => {
+  const cleanEndpoint = (endpoint || "").replace(/\/+$/, "");
+  const targetUrl = `${cleanEndpoint}/${bucket}/openclip-sync.json`;
+
+  return {
+    name: "AWS S3 / MinIO",
+    async isAvailable() {
+      return !!cleanEndpoint && !!bucket && !!accessKeyId;
+    },
+    async pull() {
+      try {
+        const resp = await fetch(targetUrl, {
+          method: "GET",
+          headers: {
+            "x-amz-date": new Date().toUTCString(),
+          },
+        });
+        if (resp.status === 404) return { entries: [], settings: [], devices: [] };
+        if (!resp.ok) throw new Error(`S3/MinIO HTTP Error ${resp.status}`);
+        const payloadData = await parseRemotePayload(await resp.text());
+        await updateProviderStatus("s3", {
+          lastSyncTime: Date.now(),
+          status: "success",
+          message: "S3 拉取成功",
+          itemCount: payloadData.entries.length,
+        });
+        return payloadData;
+      } catch (e: any) {
+        await updateProviderStatus("s3", {
+          status: "error",
+          message: e?.message || "S3 拉取失败",
+        });
+        throw e;
+      }
+    },
+    async push(data) {
+      try {
+        const settings = await getSettings();
+        const prunedEntries = pruneExpiredAndOversizedEntries(
+          data.entries || [],
+          settings.historyRetentionDays,
+          settings.localItemCharacterLimit,
+        );
+        const payloadData = { ...data, entries: prunedEntries };
+        const contentStr = JSON.stringify(payloadData);
+
+        const resp = await fetch(targetUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: contentStr,
+        });
+        if (!resp.ok && resp.status !== 200 && resp.status !== 201 && resp.status !== 204) {
+          throw new Error(`S3/MinIO PUT Error ${resp.status}`);
+        }
+        await updateProviderStatus("s3", {
+          lastSyncTime: Date.now(),
+          status: "success",
+          message: "S3 推送成功",
+          itemCount: payloadData.entries.length,
+        });
+      } catch (e: any) {
+        await updateProviderStatus("s3", {
+          status: "error",
+          message: e?.message || "S3 推送失败",
+        });
+        throw e;
+      }
+    },
+  };
+};
+
+// ─────────────────────────────────────────────
+// 7. Custom REST API / Private Server Provider
+// ─────────────────────────────────────────────
+export const createCustomRestProvider = (url: string, token: string): SyncProvider => {
+  const targetUrl = (url || "").replace(/\/+$/, "");
+
+  return {
+    name: "Custom REST API",
+    async isAvailable() {
+      return !!targetUrl;
+    },
+    async pull() {
+      try {
+        const headers: Record<string, string> = { Accept: "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const resp = await fetch(targetUrl, { method: "GET", headers });
+        if (!resp.ok) throw new Error(`Custom REST HTTP Error ${resp.status}`);
+        const payloadData = await parseRemotePayload(await resp.text());
+        await updateProviderStatus("customRest", {
+          lastSyncTime: Date.now(),
+          status: "success",
+          message: "Custom API 拉取成功",
+          itemCount: payloadData.entries.length,
+        });
+        return payloadData;
+      } catch (e: any) {
+        await updateProviderStatus("customRest", {
+          status: "error",
+          message: e?.message || "Custom API 拉取失败",
+        });
+        throw e;
+      }
+    },
+    async push(data) {
+      try {
+        const settings = await getSettings();
+        const prunedEntries = pruneExpiredAndOversizedEntries(
+          data.entries || [],
+          settings.historyRetentionDays,
+          settings.localItemCharacterLimit,
+        );
+        const payloadData = { ...data, entries: prunedEntries };
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const resp = await fetch(targetUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payloadData),
+        });
+        if (!resp.ok) throw new Error(`Custom REST POST Error ${resp.status}`);
+        await updateProviderStatus("customRest", {
+          lastSyncTime: Date.now(),
+          status: "success",
+          message: "Custom API 推送成功",
+          itemCount: payloadData.entries.length,
+        });
+      } catch (e: any) {
+        await updateProviderStatus("customRest", {
+          status: "error",
+          message: e?.message || "Custom API 推送失败",
+        });
+        throw e;
+      }
+    },
+  };
+};
+
+// ─────────────────────────────────────────────
 // OAuth 快捷授权助手
 // ─────────────────────────────────────────────
 export const authorizeGoogleOAuth = async (clientId: string): Promise<string> => {
@@ -909,6 +1163,20 @@ export const getActiveProvider = async (): Promise<SyncProvider | null> => {
     providers.push(
       createGoogleDriveProvider(s.googleAccessToken, s.googleDriveFolder || "/OpenClipSync"),
     );
+  }
+
+  if (s.enableGist && s.gistToken) {
+    providers.push(createGistProvider(s.gistToken, s.gistId));
+  }
+
+  if (s.enableS3 && s.s3Endpoint && s.s3AccessKeyId) {
+    providers.push(
+      createS3Provider(s.s3Endpoint, s.s3Bucket, s.s3AccessKeyId, s.s3SecretAccessKey, s.s3Region),
+    );
+  }
+
+  if (s.enableCustomRest && s.customRestUrl) {
+    providers.push(createCustomRestProvider(s.customRestUrl, s.customRestToken));
   }
 
   if (providers.length === 0) return null;

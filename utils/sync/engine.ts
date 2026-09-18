@@ -1,5 +1,5 @@
 /**
- * utils/sync/engine.ts — v2.6.0 分模态独立文件 WebDAV 存储架构 Sync Engine
+ * utils/sync/engine.ts — v2.7.0 分模态独立文件 Sync Engine
  * 包含: 剪贴板 (clipboard.json)、书签 (bookmarks.json)、历史 (history.json)、
  *       会话 (sessions.json)、扩展 (extensions.json)、主控规则 (master_config.json)
  */

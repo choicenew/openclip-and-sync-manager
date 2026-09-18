@@ -18,12 +18,14 @@ import {
 import { modals } from "@mantine/modals";
 import {
   IconBookmark,
+  IconBrandGithub,
   IconChartBar,
   IconClipboardList,
   IconCloud,
   IconCrown,
   IconDeviceDesktop,
   IconGlobe,
+  IconHeart,
   IconHistory,
   IconPictureInPicture,
   IconPuzzle,
@@ -46,6 +48,7 @@ import { getMasterDeviceState, type MasterDeviceState } from "~storage/masterDev
 import { Tab } from "~types/tab";
 import db from "~utils/db/react";
 import { defaultBorderColor } from "~utils/sx";
+import { VERSION } from "~utils/version";
 
 import { SettingsModalContent } from "./components/modals/SettingsModalContent";
 import { StorageUsageModalContent } from "./components/modals/StorageUsageModalContent";
@@ -128,7 +131,7 @@ export const App = () => {
             <Image src={iconSrc} maw={26} />
             <Title order={6}>OpenClip Sync</Title>
             <Badge size="xs" variant="light" color="blue">
-              v2.6.0
+              v{VERSION}
             </Badge>
 
             {/* Master/Auxiliary Device Role Badge */}
@@ -144,6 +147,32 @@ export const App = () => {
           </Group>
 
           <Group align="center" spacing="xs" grow={false}>
+            {/* Donate 赞助收款链接 */}
+            <Tooltip label={<Text fz="xs">赞助与支持项目 (Ko-fi 收款)</Text>}>
+              <ActionIcon
+                variant="light"
+                color="pink"
+                onClick={() =>
+                  window.open("https://ko-fi.com/cue322631", "_blank")
+                }
+              >
+                <IconHeart size="1.125rem" />
+              </ActionIcon>
+            </Tooltip>
+
+            {/* GitHub 官方项目仓库 */}
+            <Tooltip label={<Text fz="xs">GitHub 官方仓库 (choicenew)</Text>}>
+              <ActionIcon
+                variant="light"
+                color="gray"
+                onClick={() =>
+                  window.open("https://github.com/choicenew", "_blank")
+                }
+              >
+                <IconBrandGithub size="1.125rem" />
+              </ActionIcon>
+            </Tooltip>
+
             {/* Floating Mode */}
             <Tooltip label={<Text fz="xs">独立悬浮窗</Text>} disabled={isFloatingPopup || isSidePanel}>
               <ActionIcon
@@ -204,7 +233,7 @@ export const App = () => {
                   modals.open({
                     padding: "md",
                     size: "lg",
-                    title: "OpenClip Sync 设置",
+                    title: "OpenClip Sync 系统与同步设置",
                     children: <SettingsModalContent />,
                   })
                 }
@@ -212,7 +241,6 @@ export const App = () => {
                 <IconSettings size="1.125rem" />
               </ActionIcon>
             </Tooltip>
-
             <Divider orientation="vertical" h={16} sx={{ alignSelf: "inherit" }} />
 
             {/* Clipboard Monitor Switch */}

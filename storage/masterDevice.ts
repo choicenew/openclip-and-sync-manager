@@ -12,7 +12,9 @@ export interface ModalitySourceMapping {
 
 export interface DevicePermissionRule {
   deviceId: string;                // 目标从设备 ID (如 设备 B)
-  deviceName: string;              // 目标从设备名称
+  deviceName: string;              // 目标从设备原始名称
+  customAlias?: string;            // 主设备为设备 B 赋予的自定义别名 (如 "小明的 MacBook Pro")
+  enabled: boolean;                // 主设备是否开启对该从设备的通信授权 (false 为封禁/踢出)
   sources: ModalitySourceMapping;  // 各模态绑定的数据源设备映射
 }
 
