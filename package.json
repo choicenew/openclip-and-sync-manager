@@ -1,0 +1,114 @@
+{
+  "packageManager": "pnpm@8.15.9",
+  "name": "openclip-sync",
+  "displayName": "OpenClip Sync - Fast, Secure & Multi-Device Clipboard Manager",
+  "version": "2.3.1",
+  "description": "Powerful multi-device clipboard manager with WebDAV, Chrome Sync, content deduplication and tags.",
+  "author": "Open Source Community",
+  "scripts": {
+    "dev": "plasmo dev",
+    "dev:firefox": "plasmo dev --target=firefox-mv2",
+    "build": "plasmo build",
+    "build:firefox": "ts-node scripts/build-firefox-setup.ts && prettier package.json --write && plasmo build --target=firefox-mv2 && ts-node scripts/build-firefox-teardown.ts",
+    "package": "plasmo package",
+    "package:firefox": "plasmo package --target=firefox-mv2",
+    "lint": "eslint .",
+    "format": "prettier . --write",
+    "generate:translations": "DOTENV_CONFIG_PATH=.env.local ts-node -r dotenv/config scripts/generate-translations.ts"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/modifiers": "^7.0.0",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@emotion/react": "^11.13.3",
+    "@hookform/resolvers": "^3.9.0",
+    "@instantdb/core": "^0.17.31",
+    "@instantdb/react": "^0.17.31",
+    "@mantine/core": "6.0.21",
+    "@mantine/hooks": "6.0.21",
+    "@mantine/modals": "6.0.21",
+    "@mantine/notifications": "6.0.21",
+    "@marko19907/string-to-color": "^1.0.0",
+    "@plasmohq/messaging": "^0.6.2",
+    "@plasmohq/storage": "^1.12.0",
+    "@ricokahler/pool": "^1.2.0",
+    "@tabler/icons-react": "^3.14.0",
+    "date-fns": "3.1.0",
+    "jotai": "^2.9.3",
+    "plasmo": "0.89.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-hook-form": "^7.53.0",
+    "react-virtualized-auto-sizer": "^1.0.25",
+    "react-window": "^1.8.10",
+    "short-time-ago": "^2.0.0",
+    "ts-debounce": "^4.0.0",
+    "ts-pattern": "^5.6.2",
+    "ts-results": "^3.3.0",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^1.2.3",
+    "@eslint/js": "^9.16.0",
+    "@ianvs/prettier-plugin-sort-imports": "4.1.1",
+    "@types/chrome": "0.0.258",
+    "@types/node": "20.11.5",
+    "@types/react": "18.2.48",
+    "@types/react-dom": "18.2.18",
+    "@types/react-window": "^1.8.8",
+    "deepl-node": "^1.27.0",
+    "dotenv": "^17.3.1",
+    "eslint": "^9.16.0",
+    "prettier": "3.2.4",
+    "ts-node": "^10.9.2",
+    "typescript": "5.3.3",
+    "typescript-eslint": "^8.16.0"
+  },
+  "manifest": {
+    "default_locale": "en",
+    "permissions": [
+      "identity",
+      "offscreen",
+      "clipboardRead",
+      "clipboardWrite",
+      "unlimitedStorage",
+      "contextMenus",
+      "scripting",
+      "activeTab",
+      "sidePanel"
+    ],
+    "host_permissions": [
+      "https://*/*",
+      "http://*/*"
+    ],
+    "side_panel": {
+      "default_path": "popup.html?ref=sidepanel"
+    },
+    "commands": {
+      "paste-item-1": {
+        "suggested_key": {
+          "default": "Alt+Shift+1"
+        },
+        "description": "Paste Item 1"
+      },
+      "paste-item-2": {
+        "suggested_key": {
+          "default": "Alt+Shift+2"
+        },
+        "description": "Paste Item 2"
+      },
+      "paste-item-3": {
+        "suggested_key": {
+          "default": "Alt+Shift+3"
+        },
+        "description": "Paste Item 3"
+      },
+      "_execute_action": {
+        "suggested_key": {
+          "default": "Alt+Shift+V"
+        }
+      }
+    }
+  }
+}
