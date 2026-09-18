@@ -6,6 +6,7 @@ import {
   Checkbox,
   Group,
   Paper,
+  ScrollArea,
   Stack,
   Text,
   Title,
@@ -14,14 +15,17 @@ import {
 import {
   IconBrandGoogleDrive,
   IconBrandOnedrive,
+  IconCheck,
+  IconCloudCheck,
   IconCloudUpload,
   IconDatabase,
   IconGlobe,
+  IconInfoCircle,
   IconRefresh,
   IconServer,
+  IconShieldCheck,
 } from "@tabler/icons-react";
-import { useAtomValue } from "jotai";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   getSyncSettings,
@@ -32,10 +36,6 @@ import {
 } from "~storage/syncSettings";
 import { runFullSync } from "~utils/sync/engine";
 import { lightOrDark } from "~utils/sx";
-
-import { EntryList } from "../components/EntryList";
-import { NoEntriesOverlay } from "../components/NoEntriesOverlay";
-import { entriesAtom, entryIdToTagsAtom, searchAtom } from "../states/atoms";
 
 function formatLastSync(timestamp: number | null | undefined): string {
   if (!timestamp) return "从未同步";
@@ -49,23 +49,9 @@ function formatLastSync(timestamp: number | null | undefined): string {
 
 export const CloudPage = () => {
   const theme = useMantineTheme();
-  const search = useAtomValue(searchAtom);
-  const entries = useAtomValue(entriesAtom) || [];
-  const entryIdToTags = useAtomValue(entryIdToTagsAtom) || {};
-
   const [syncSettings, setSyncSettingsState] = useState<SyncSettings | null>(null);
   const [syncStatus, setSyncStatusState] = useState<SyncStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
-
-  const filteredEntries = useMemo(() => {
-    const reversed = [...entries].reverse();
-    return reversed.filter(
-      (entry) =>
-        search.length === 0 ||
-        entry.content.toLowerCase().includes(search.toLowerCase()) ||
-        entryIdToTags[entry.id]?.some((tag) => tag.includes(search.toLowerCase())),
-    );
-  }, [entries, search, entryIdToTags]);
 
   const loadAllState = async () => {
     const [settings, status] = await Promise.all([getSyncSettings(), getSyncStatus()]);
@@ -101,25 +87,26 @@ export const CloudPage = () => {
     await setSyncSettings(updated);
   };
 
-  const hasAnyEnabled =
-    syncSettings?.enableChromeSync ||
-    syncSettings?.enableWebdav ||
-    syncSettings?.enableOneDrive ||
-    syncSettings?.enableGoogleDrive ||
-    syncSettings?.enableGist ||
-    syncSettings?.enableS3 ||
-    syncSettings?.enableCustomRest;
+  const activeProviderCount = [
+    syncSettings?.enableChromeSync,
+    syncSettings?.enableWebdav,
+    syncSettings?.enableOneDrive,
+    syncSettings?.enableGoogleDrive,
+    syncSettings?.enableGist,
+    syncSettings?.enableS3,
+    syncSettings?.enableCustomRest,
+  ].filter(Boolean).length;
 
   return (
-    <Stack spacing="xs" sx={{ flex: 1, minHeight: 0 }}>
-      {/* 1. 顶部：专属于云端 Backend 同步节点与状态看板 */}
+    <Stack spacing="xs" p="xs" sx={{ flex: 1, minHeight: 0 }}>
+      {/* 1. 顶部：云端 Backend 7 大节点看板 */}
       <Card p="xs" radius="md" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
         <Stack spacing={8}>
           <Group position="apart" align="center">
             <Group spacing="xs">
               <IconCloudUpload size="1.1rem" color={theme.colors.indigo[6]} />
               <Text fw={600} fz="xs">
-                云端同步 Backend 节点看板（支持多节点并行多选）
+                云端 Backend 同步节点状态看板 ({activeProviderCount} 个已启用)
               </Text>
             </Group>
             <Button
@@ -135,7 +122,7 @@ export const CloudPage = () => {
           </Group>
 
           <Group grow spacing="xs">
-            {/* 1.1 Chrome Sync */}
+            {/* Chrome Sync */}
             <Paper
               withBorder
               p="xs"
@@ -184,7 +171,7 @@ export const CloudPage = () => {
               </Stack>
             </Paper>
 
-            {/* 1.2 WebDAV */}
+            {/* WebDAV */}
             <Paper
               withBorder
               p="xs"
@@ -233,7 +220,7 @@ export const CloudPage = () => {
               </Stack>
             </Paper>
 
-            {/* 1.3 OneDrive */}
+            {/* OneDrive */}
             <Paper
               withBorder
               p="xs"
@@ -288,7 +275,7 @@ export const CloudPage = () => {
               </Stack>
             </Paper>
 
-            {/* 1.4 Google Drive */}
+            {/* Google Drive */}
             <Paper
               withBorder
               p="xs"
@@ -343,7 +330,7 @@ export const CloudPage = () => {
               </Stack>
             </Paper>
 
-            {/* 1.5 GitHub Gist */}
+            {/* GitHub Gist */}
             <Paper
               withBorder
               p="xs"
@@ -392,7 +379,7 @@ export const CloudPage = () => {
               </Stack>
             </Paper>
 
-            {/* 1.6 AWS S3 / MinIO */}
+            {/* AWS S3 / MinIO */}
             <Paper
               withBorder
               p="xs"
@@ -444,31 +431,88 @@ export const CloudPage = () => {
         </Stack>
       </Card>
 
-      {/* 2. 下部：从云端同步合并的多端剪贴板数据 Feed 列表 */}
-      <Box sx={{ flex: 1, minHeight: 0 }}>
-        <EntryList
-          noEntriesOverlay={
-            !hasAnyEnabled ? (
-              <Stack align="center" spacing="sm" p="xl">
-                <IconCloudUpload size="2.5rem" color={theme.colors.gray[5]} />
-                <Title order={5}>尚未开启云端同步</Title>
-                <Text size="sm" color="dimmed" align="center" maw={380}>
-                  勾选上方任一云同步节点（或在设置中配置账号），即可实现多端自动双向同步。
+      {/* 2. 下部：纯粹的云同步巡检状态与数据管道健康日志 */}
+      <ScrollArea sx={{ flex: 1 }}>
+        <Stack spacing="xs">
+          <Paper p="sm" radius="md" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
+            <Stack spacing="xs">
+              <Group spacing="xs">
+                <IconCloudCheck size={18} color={theme.colors.indigo[6]} />
+                <Text fw={600} fz="sm">
+                  云端多模态分文件同步机制说明
                 </Text>
-              </Stack>
-            ) : search.length === 0 ? (
-              <NoEntriesOverlay
-                title="暂无同步条目"
-                subtitle="所有本地复制的内容均已自动纳入多端同步池中"
-                description="剪贴板数据会自动在所有开启的云端存储中进行双向合并"
-              />
-            ) : (
-              <NoEntriesOverlay title={`未找到包含 "${search}" 的条目`} />
-            )
-          }
-          entries={filteredEntries}
-        />
-      </Box>
+              </Group>
+
+              <Text fz="xs" color="dimmed">
+                OpenClip Sync 采用去中心化分模态独立架构，您的数据完全属于您自己。每次同步触发时，数据将以独立的加密规范写入您的后端网盘：
+              </Text>
+
+              <Group grow spacing="xs">
+                <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
+                  <Stack spacing={2}>
+                    <Text fz="xs" fw={600}>
+                      📋 剪贴板文件 (clipboard.json)
+                    </Text>
+                    <Text fz={11} color="dimmed">
+                      多设备剪贴板历史记录、标签、固定与置顶状态
+                    </Text>
+                  </Stack>
+                </Paper>
+                <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
+                  <Stack spacing={2}>
+                    <Text fz="xs" fw={600}>
+                      🔖 书签树文件 (bookmarks.json)
+                    </Text>
+                    <Text fz={11} color="dimmed">
+                      跨浏览器书签结构树同步与备份
+                    </Text>
+                  </Stack>
+                </Paper>
+              </Group>
+
+              <Group grow spacing="xs">
+                <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
+                  <Stack spacing={2}>
+                    <Text fz="xs" fw={600}>
+                      📜 历史与会话 (history.json / sessions.json)
+                    </Text>
+                    <Text fz={11} color="dimmed">
+                      30天浏览历史记录与多设备打开的标签页会话组
+                    </Text>
+                  </Stack>
+                </Paper>
+                <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
+                  <Stack spacing={2}>
+                    <Text fz="xs" fw={600}>
+                      👑 主控锁规则 (master_config.json)
+                    </Text>
+                    <Text fz={11} color="dimmed">
+                      主控设备声明与从设备授权防护规则矩阵
+                    </Text>
+                  </Stack>
+                </Paper>
+              </Group>
+            </Stack>
+          </Paper>
+
+          <Paper p="sm" radius="md" withBorder bg={lightOrDark(theme, "indigo.0", "dark.6")}>
+            <Group position="apart">
+              <Group spacing="xs">
+                <IconShieldCheck size={18} color={theme.colors.indigo[7]} />
+                <Text fw={600} fz="sm">
+                  数据安全与零商业服务器保证
+                </Text>
+              </Group>
+              <Badge size="xs" color="indigo">
+                100% 去中心化
+              </Badge>
+            </Group>
+            <Text fz="xs" color="dimmed" mt={4}>
+              本插件绝不收集或上传任何数据至第三方商业服务器。所有数据直接通过您自己配置的 WebDAV / 云盘进行直连加密传输。
+            </Text>
+          </Paper>
+        </Stack>
+      </ScrollArea>
     </Stack>
   );
 };

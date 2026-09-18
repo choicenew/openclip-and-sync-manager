@@ -161,12 +161,12 @@ export const App = () => {
             </Tooltip>
 
             {/* GitHub 官方项目仓库 */}
-            <Tooltip label={<Text fz="xs">GitHub 官方仓库 (choicenew)</Text>}>
+            <Tooltip label={<Text fz="xs">GitHub 官方开源仓库 (choicenew/openclip)</Text>}>
               <ActionIcon
                 variant="light"
                 color="gray"
                 onClick={() =>
-                  window.open("https://github.com/choicenew", "_blank")
+                  window.open("https://github.com/choicenew/openclip", "_blank")
                 }
               >
                 <IconBrandGithub size="1.125rem" />
