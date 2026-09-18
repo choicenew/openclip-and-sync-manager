@@ -26,9 +26,12 @@ import {
   IconCrown,
   IconDevices,
   IconFilter,
+  IconPlus,
   IconRefresh,
   IconAdjustmentsHorizontal,
+  IconShieldCheck,
   IconShieldLock,
+  IconTrash,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
@@ -100,6 +103,8 @@ export const SettingsPage = () => {
   const [syncing, setSyncing] = useState(false);
   const [authorizingOneDrive, setAuthorizingOneDrive] = useState(false);
   const [authorizingGoogle, setAuthorizingGoogle] = useState(false);
+  const [newRuleName, setNewRuleName] = useState("");
+  const [newRuleKeywords, setNewRuleKeywords] = useState("");
 
   useEffect(() => {
     Promise.all([getSyncSettings(), getSettings(), getMasterDeviceState()]).then(
@@ -565,6 +570,123 @@ export const SettingsPage = () => {
                 }))
               }
             />
+          </Stack>
+        </Card>
+
+        {/* 4. 敏感与特定关键词自动拦截/删除规则 */}
+        <Card p="sm" radius="md" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
+          <Stack spacing="xs">
+            <Group position="apart">
+              <Group spacing="xs">
+                <IconShieldLock size={18} color={theme.colors.red[6]} />
+                <Text fw={600} fz="sm">
+                  特定关键词自动拦截与彻底删除策略 (Keyword Auto Delete)
+                </Text>
+              </Group>
+              <Switch
+                size="xs"
+                color="red"
+                checked={!!settings.enableBlacklistFilter}
+                onChange={(e) =>
+                  setSet((prev: any) => ({
+                    ...prev,
+                    enableBlacklistFilter: e.currentTarget.checked,
+                  }))
+                }
+              />
+            </Group>
+            <Text size="xs" color="dimmed">
+              开启后，当复制内容符合以下包含的特定关键词时，系统将自动拦截并彻底删除，不写入历史与云端同步。
+            </Text>
+
+            {settings.enableBlacklistFilter && (
+              <Stack spacing="xs" mt="xs">
+                {(settings.blacklistRules || []).map((rule: any, idx: number) => (
+                  <Paper key={rule.id || idx} p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
+                    <Group position="apart" align="center">
+                      <Stack spacing={2}>
+                        <Group spacing="xs">
+                          <Text fz="xs" fw={600}>
+                            {rule.name}
+                          </Text>
+                          <Switch
+                            size="xs"
+                            color="red"
+                            checked={rule.enabled}
+                            onChange={(e) => {
+                              const updated = (settings.blacklistRules || []).map((r: any) =>
+                                r.id === rule.id ? { ...r, enabled: e.currentTarget.checked } : r
+                              );
+                              setSet((prev: any) => ({ ...prev, blacklistRules: updated }));
+                            }}
+                          />
+                        </Group>
+                        <Text fz="11px" color="dimmed">
+                          匹配关键词：{(rule.keywords || []).join(", ")}
+                        </Text>
+                      </Stack>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        compact
+                        onClick={() => {
+                          const updated = (settings.blacklistRules || []).filter((r: any) => r.id !== rule.id);
+                          setSet((prev: any) => ({ ...prev, blacklistRules: updated }));
+                        }}
+                      >
+                        删除规则
+                      </Button>
+                    </Group>
+                  </Paper>
+                ))}
+
+                <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "gray.1", "dark.6")}>
+                  <Stack spacing="xs">
+                    <Text fz="xs" fw={600} color="indigo">
+                      添加新关键词拦截与彻底删除规则
+                    </Text>
+                    <Group grow align="flex-end">
+                      <TextInput
+                        placeholder="规则名称 (如: 支付敏感密码)"
+                        size="xs"
+                        value={newRuleName}
+                        onChange={(e) => setNewRuleName(e.target.value)}
+                      />
+                      <TextInput
+                        placeholder="关键词(英文逗号分隔，如: password, secret)"
+                        size="xs"
+                        value={newRuleKeywords}
+                        onChange={(e) => setNewRuleKeywords(e.target.value)}
+                      />
+                      <Button
+                        size="xs"
+                        color="indigo"
+                        onClick={() => {
+                          if (!newRuleName.trim() || !newRuleKeywords.trim()) return;
+                          const keywords = newRuleKeywords
+                            .split(",")
+                            .map((k) => k.trim())
+                            .filter(Boolean);
+                          const newRule = {
+                            id: "rule_" + Date.now(),
+                            name: newRuleName.trim(),
+                            keywords,
+                            enabled: true,
+                          };
+                          const updated = [...(settings.blacklistRules || []), newRule];
+                          setSet((prev: any) => ({ ...prev, blacklistRules: updated }));
+                          setNewRuleName("");
+                          setNewRuleKeywords("");
+                        }}
+                      >
+                        添加规则
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Paper>
+              </Stack>
+            )}
           </Stack>
         </Card>
 
