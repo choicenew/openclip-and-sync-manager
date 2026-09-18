@@ -535,15 +535,96 @@ export const SettingsPage = () => {
           </Stack>
         </Card>
 
-        {/* 3. 本机与存储清理规则 */}
+        {/* 3. 本机属性、自动合并与数据保留策略 */}
         <Card p="sm" radius="md" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
           <Stack spacing="xs">
             <Group spacing="xs">
               <IconFilter size={18} color={theme.colors.blue[6]} />
               <Text fw={600} fz="sm">
-                本机属性与数据保留策略
+                本机属性、合并策略与独立同步模态选择
               </Text>
             </Group>
+
+            <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
+              <Group position="apart" align="center">
+                <Stack spacing={2}>
+                  <Text size="xs" fw={600}>
+                    自动合并重复剪贴板记录 (Auto Merge Duplicates)
+                  </Text>
+                  <Text size="11px" color="dimmed">
+                    开启后，复制重复内容时会自动合并并更新为最新的日期时间戳；关闭后将保留每条独立的复制记录。
+                  </Text>
+                </Stack>
+                <Switch
+                  size="md"
+                  color="indigo"
+                  checked={settings.deduplicateEntries !== false}
+                  onChange={(e) =>
+                    setSet((prev: any) => ({ ...prev, deduplicateEntries: e.currentTarget.checked }))
+                  }
+                />
+              </Group>
+            </Paper>
+
+            <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
+              <Stack spacing="xs">
+                <Text size="xs" fw={600} color="indigo">
+                  本机独立数据同步模态选择 (此设备要与云端同步的类型)
+                </Text>
+                <Group spacing="md">
+                  <Checkbox
+                    label="📋 剪贴板 (Clipboard)"
+                    checked={settings.syncModalities?.clipboard !== false}
+                    onChange={(e) =>
+                      setSet((prev: any) => ({
+                        ...prev,
+                        syncModalities: { ...(prev.syncModalities || {}), clipboard: e.currentTarget.checked },
+                      }))
+                    }
+                  />
+                  <Checkbox
+                    label="🔖 书签树 (Bookmarks)"
+                    checked={settings.syncModalities?.bookmarks !== false}
+                    onChange={(e) =>
+                      setSet((prev: any) => ({
+                        ...prev,
+                        syncModalities: { ...(prev.syncModalities || {}), bookmarks: e.currentTarget.checked },
+                      }))
+                    }
+                  />
+                  <Checkbox
+                    label="🌐 会话标签 (Sessions)"
+                    checked={settings.syncModalities?.sessions !== false}
+                    onChange={(e) =>
+                      setSet((prev: any) => ({
+                        ...prev,
+                        syncModalities: { ...(prev.syncModalities || {}), sessions: e.currentTarget.checked },
+                      }))
+                    }
+                  />
+                  <Checkbox
+                    label="📜 浏览历史 (History)"
+                    checked={settings.syncModalities?.history !== false}
+                    onChange={(e) =>
+                      setSet((prev: any) => ({
+                        ...prev,
+                        syncModalities: { ...(prev.syncModalities || {}), history: e.currentTarget.checked },
+                      }))
+                    }
+                  />
+                  <Checkbox
+                    label="🧩 扩展列表 (Extensions)"
+                    checked={settings.syncModalities?.extensions !== false}
+                    onChange={(e) =>
+                      setSet((prev: any) => ({
+                        ...prev,
+                        syncModalities: { ...(prev.syncModalities || {}), extensions: e.currentTarget.checked },
+                      }))
+                    }
+                  />
+                </Group>
+              </Stack>
+            </Paper>
 
             <Group grow>
               <TextInput

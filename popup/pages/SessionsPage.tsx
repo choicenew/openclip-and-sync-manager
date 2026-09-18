@@ -21,6 +21,7 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
+import { getSyncedSessions } from "~storage/syncedSessions";
 import { getSyncSettings } from "~storage/syncSettings";
 import {
   exportCurrentTabs,
@@ -43,21 +44,32 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
 
   const loadData = async () => {
     setLoading(true);
-    const [tabs, syncSet] = await Promise.all([exportCurrentTabs(), getSyncSettings()]);
+    const [tabs, syncSet, remoteSessions] = await Promise.all([
+      exportCurrentTabs(),
+      getSyncSettings(),
+      getSyncedSessions(),
+    ]);
     setLocalTabs(tabs);
     setCurrentDeviceId(syncSet.deviceId || "");
 
-    // 本地及同步会话预占位
-    setSyncedSessions([
-      {
-        id: "local_current",
-        deviceId: syncSet.deviceId || "local",
-        deviceName: syncSet.deviceName || "此电脑 (本机)",
-        savedAt: new Date().toISOString(),
-        label: "当前打开的活跃标签页",
-        tabs,
-      },
-    ]);
+    const localSession: SyncSession = {
+      id: "local_current",
+      deviceId: syncSet.deviceId || "local",
+      deviceName: `${syncSet.deviceName || "此电脑"} (本机)`,
+      savedAt: new Date().toISOString(),
+      label: "当前打开的活跃标签页",
+      tabs,
+    };
+
+    const sessionMap = new Map<string, SyncSession>();
+    sessionMap.set(localSession.id, localSession);
+    for (const s of remoteSessions) {
+      if (s && s.id && s.id !== "local_current" && s.tabs?.length > 0) {
+        sessionMap.set(s.id, s);
+      }
+    }
+
+    setSyncedSessions(Array.from(sessionMap.values()));
     setLoading(false);
   };
 

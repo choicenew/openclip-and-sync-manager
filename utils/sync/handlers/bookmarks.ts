@@ -87,3 +87,11 @@ export async function importBookmarkUrls(urls: { title: string; url: string }[])
   }
   return addedCount;
 }
+
+/** 自动将云端拉取到的远程书签合并写入本机浏览器书签树 */
+export async function syncRemoteBookmarksToLocal(remoteBookmarks: SyncBookmark[]): Promise<number> {
+  if (!remoteBookmarks || remoteBookmarks.length === 0) return 0;
+  const map = extractBookmarkUrls(remoteBookmarks);
+  const urls = Array.from(map.values());
+  return await importBookmarkUrls(urls);
+}
