@@ -34,7 +34,9 @@ import {
   setMasterDeviceState,
   type MasterDeviceState,
 } from "~storage/masterDevice";
+import { getSettings, setSettings } from "~storage/settings";
 import { getSyncSettings, type SyncSettings } from "~storage/syncSettings";
+import type { Settings } from "~types/settings";
 import { runFullSync } from "~utils/sync/engine";
 import type { DeviceInfo } from "~utils/sync/provider";
 import { lightOrDark } from "~utils/sx";
@@ -52,6 +54,7 @@ function formatLastSync(timestamp: number | null | undefined): string {
 export const DevicesPage = () => {
   const theme = useMantineTheme();
   const [syncSettings, setSyncSettingsState] = useState<SyncSettings | null>(null);
+  const [sysSettings, setSysSettings] = useState<Settings | null>(null);
   const [discoveredDevices, setDiscoveredDevices] = useState<DeviceInfo[]>([]);
   const [masterState, setMasterState] = useState<MasterDeviceState>({
     isMasterDevice: false,
@@ -67,16 +70,36 @@ export const DevicesPage = () => {
   const [syncing, setSyncing] = useState(false);
 
   const loadAllState = async () => {
-    const [settings, master, devices] = await Promise.all([
+    const [settings, master, devices, sysSt] = await Promise.all([
       getSyncSettings(),
       getMasterDeviceState(),
       getDiscoveredDevices(),
+      getSettings(),
     ]);
     setSyncSettingsState(settings);
     setMasterState(master);
+    setSysSettings(sysSt);
 
     const registered = await registerCurrentDevice(settings);
     setDiscoveredDevices(registered);
+  };
+
+  const handleToggleLocalUpload = async (
+    modality: "clipboard" | "bookmarks" | "sessions" | "history" | "extensions",
+    enabled: boolean,
+  ) => {
+    if (!sysSettings) return;
+    const currentModalities = sysSettings.syncModalities || {
+      clipboard: true,
+      bookmarks: true,
+      sessions: true,
+      history: true,
+      extensions: true,
+    };
+    const updatedModalities = { ...currentModalities, [modality]: enabled };
+    const updatedSys = { ...sysSettings, syncModalities: updatedModalities };
+    setSysSettings(updatedSys);
+    await setSettings(updatedSys);
   };
 
   useEffect(() => {
@@ -299,13 +322,63 @@ export const DevicesPage = () => {
             </Tooltip>
           </Group>
 
-          {masterState.isForcedAuxiliary && (
-            <Alert icon={<IconAlertCircle size={14} />} color="orange" p="xs">
-              <Text fz="xs">
-                主设备已被「{masterState.masterDeviceName || "云端主控"}」锁定。本机受主设备下发的权限矩阵约束。
+          {/* 子设备 (如设备 B) 本地自主关停上传与隐私卡片 */}
+          <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "gray.1", "dark.6")}>
+            <Stack spacing="xs">
+              <Group position="apart">
+                <Group spacing="xs">
+                  <IconShield size={16} color={theme.colors.indigo[6]} />
+                  <Text fw={600} fz="xs">
+                    本机 (子设备 / 设备 B) 自主数据关停与隐私控制 (独立最高优先级)
+                  </Text>
+                </Group>
+                <Badge size="xs" color="teal">
+                  最高自主权
+                </Badge>
+              </Group>
+              <Text fz={11} color="dimmed">
+                无论主设备给出的控制权限如何，在此您可以随时关停本机特定模态的数据上传。被关闭的模态数据将只留在本机，绝不上传到云端：
               </Text>
-            </Alert>
-          )}
+
+              <Group spacing="md">
+                <Switch
+                  size="xs"
+                  label="📋 剪贴板上传"
+                  color="indigo"
+                  checked={sysSettings?.syncModalities?.clipboard !== false}
+                  onChange={(e) => handleToggleLocalUpload("clipboard", e.currentTarget.checked)}
+                />
+                <Switch
+                  size="xs"
+                  label="🔖 书签树上传"
+                  color="indigo"
+                  checked={sysSettings?.syncModalities?.bookmarks !== false}
+                  onChange={(e) => handleToggleLocalUpload("bookmarks", e.currentTarget.checked)}
+                />
+                <Switch
+                  size="xs"
+                  label="🌐 会话标签上传"
+                  color="indigo"
+                  checked={sysSettings?.syncModalities?.sessions !== false}
+                  onChange={(e) => handleToggleLocalUpload("sessions", e.currentTarget.checked)}
+                />
+                <Switch
+                  size="xs"
+                  label="📜 浏览历史上传"
+                  color="indigo"
+                  checked={sysSettings?.syncModalities?.history !== false}
+                  onChange={(e) => handleToggleLocalUpload("history", e.currentTarget.checked)}
+                />
+                <Switch
+                  size="xs"
+                  label="🧩 扩展列表上传"
+                  color="indigo"
+                  checked={sysSettings?.syncModalities?.extensions !== false}
+                  onChange={(e) => handleToggleLocalUpload("extensions", e.currentTarget.checked)}
+                />
+              </Group>
+            </Stack>
+          </Paper>
 
           {/* 本机信息与全量定向拉取 */}
           <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.5")}>
