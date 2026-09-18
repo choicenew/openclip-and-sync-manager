@@ -18,7 +18,7 @@ import {
 import {
   IconAlertCircle,
   IconCrown,
-  IconDeviceDesktop,
+  IconDevices,
   IconDownload,
   IconRefresh,
   IconShield,
@@ -262,7 +262,7 @@ export const DevicesPage = () => {
         <Stack spacing="xs">
           <Group position="apart" align="center">
             <Group spacing="xs">
-              <IconDeviceDesktop size="1.1rem" color={theme.colors.indigo[7]} />
+              <IconDevices size="1.1rem" color={theme.colors.indigo[7]} />
               <Text fw={600} fz="xs">
                 跨端设备管理与 Master 模态数据源管控矩阵
               </Text>
@@ -390,7 +390,7 @@ export const DevicesPage = () => {
                 <Stack spacing={6}>
                   <Group position="apart" align="center">
                     <Group spacing={6}>
-                      <IconDeviceDesktop
+                      <IconDevices
                         size={14}
                         color={isCurrent ? theme.colors.indigo[6] : theme.colors.gray[6]}
                       />

@@ -22,12 +22,12 @@ import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
   IconCheck,
-  IconCloud,
+  IconCloudComputing,
   IconCrown,
-  IconDeviceDesktop,
+  IconDevices,
   IconFilter,
   IconRefresh,
-  IconSettings,
+  IconAdjustmentsHorizontal,
   IconShieldLock,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
@@ -209,7 +209,7 @@ export const SettingsPage = () => {
       <Stack spacing="md" p="xs">
         <Group position="apart" align="center">
           <Group spacing="xs">
-            <IconSettings size="1.2rem" color={theme.colors.indigo[6]} />
+            <IconAdjustmentsHorizontal size="1.2rem" color={theme.colors.indigo[6]} />
             <Title order={5}>OpenClip Sync 系统与同步设置</Title>
             <Badge size="xs" color="blue">
               v{VERSION}
@@ -224,7 +224,7 @@ export const SettingsPage = () => {
         <Card p="sm" radius="md" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
           <Stack spacing="xs">
             <Group spacing="xs">
-              <IconCloud size={18} color={theme.colors.indigo[6]} />
+              <IconCloudComputing size={18} color={theme.colors.indigo[6]} />
               <Text fw={600} fz="sm">
                 云端同步 Backend 选项（平铺展开，可同时勾选任意多个服务）
               </Text>
