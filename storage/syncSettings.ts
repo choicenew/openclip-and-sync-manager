@@ -1,6 +1,6 @@
 import { Storage } from "@plasmohq/storage";
 
-export type SyncProviderType = "chrome" | "webdav" | "onedrive" | "googledrive" | "none";
+export type SyncProviderType = "chrome" | "webdav" | "onedrive" | "googledrive" | "gist" | "s3" | "customRest" | "none";
 
 export interface SyncSettings {
   deviceId: string;
@@ -9,6 +9,9 @@ export interface SyncSettings {
   enableWebdav: boolean;
   enableOneDrive: boolean;
   enableGoogleDrive: boolean;
+  enableGist: boolean;
+  enableS3: boolean;
+  enableCustomRest: boolean;
   webdavUrl: string;
   webdavUsername: string;
   webdavPassword: string;
@@ -21,6 +24,15 @@ export interface SyncSettings {
   googleClientId: string;
   googleClientSecret: string;
   googleAccessToken: string;
+  gistToken: string;
+  gistId: string;
+  s3Endpoint: string;
+  s3Bucket: string;
+  s3AccessKeyId: string;
+  s3SecretAccessKey: string;
+  s3Region: string;
+  customRestUrl: string;
+  customRestToken: string;
   // Legacy compat
   provider?: SyncProviderType;
 }
@@ -32,6 +44,9 @@ const DEFAULT_SYNC_SETTINGS: SyncSettings = {
   enableWebdav: false,
   enableOneDrive: false,
   enableGoogleDrive: false,
+  enableGist: false,
+  enableS3: false,
+  enableCustomRest: false,
   webdavUrl: "",
   webdavUsername: "",
   webdavPassword: "",
@@ -44,6 +59,15 @@ const DEFAULT_SYNC_SETTINGS: SyncSettings = {
   googleClientId: "",
   googleClientSecret: "",
   googleAccessToken: "",
+  gistToken: "",
+  gistId: "",
+  s3Endpoint: "",
+  s3Bucket: "",
+  s3AccessKeyId: "",
+  s3SecretAccessKey: "",
+  s3Region: "us-east-1",
+  customRestUrl: "",
+  customRestToken: "",
 };
 
 const storage = new Storage({ area: "local" });
@@ -66,6 +90,9 @@ export const getSyncSettings = async (): Promise<SyncSettings> => {
     enableWebdav: typeof val.enableWebdav === "boolean" ? val.enableWebdav : false,
     enableOneDrive: typeof val.enableOneDrive === "boolean" ? val.enableOneDrive : false,
     enableGoogleDrive: typeof val.enableGoogleDrive === "boolean" ? val.enableGoogleDrive : false,
+    enableGist: typeof val.enableGist === "boolean" ? val.enableGist : false,
+    enableS3: typeof val.enableS3 === "boolean" ? val.enableS3 : false,
+    enableCustomRest: typeof val.enableCustomRest === "boolean" ? val.enableCustomRest : false,
   };
 };
 
@@ -92,6 +119,9 @@ export interface SyncStatus {
   webdav?: ProviderDetailStatus;
   onedrive?: ProviderDetailStatus;
   googledrive?: ProviderDetailStatus;
+  gist?: ProviderDetailStatus;
+  s3?: ProviderDetailStatus;
+  customRest?: ProviderDetailStatus;
 }
 
 const DEFAULT_PROVIDER_STATUS: ProviderDetailStatus = {
@@ -110,6 +140,9 @@ const DEFAULT_SYNC_STATUS: SyncStatus = {
   webdav: { ...DEFAULT_PROVIDER_STATUS },
   onedrive: { ...DEFAULT_PROVIDER_STATUS },
   googledrive: { ...DEFAULT_PROVIDER_STATUS },
+  gist: { ...DEFAULT_PROVIDER_STATUS },
+  s3: { ...DEFAULT_PROVIDER_STATUS },
+  customRest: { ...DEFAULT_PROVIDER_STATUS },
 };
 
 const STATUS_KEY = "syncStatus";
@@ -123,6 +156,9 @@ export const getSyncStatus = async (): Promise<SyncStatus> => {
     webdav: { ...DEFAULT_PROVIDER_STATUS, ...val?.webdav },
     onedrive: { ...DEFAULT_PROVIDER_STATUS, ...val?.onedrive },
     googledrive: { ...DEFAULT_PROVIDER_STATUS, ...val?.googledrive },
+    gist: { ...DEFAULT_PROVIDER_STATUS, ...val?.gist },
+    s3: { ...DEFAULT_PROVIDER_STATUS, ...val?.s3 },
+    customRest: { ...DEFAULT_PROVIDER_STATUS, ...val?.customRest },
   };
 };
 
@@ -132,7 +168,7 @@ export const setSyncStatus = async (status: Partial<SyncStatus>): Promise<void> 
 };
 
 export const updateProviderStatus = async (
-  providerKey: "chrome" | "webdav" | "onedrive" | "googledrive",
+  providerKey: "chrome" | "webdav" | "onedrive" | "googledrive" | "gist" | "s3" | "customRest",
   status: Partial<ProviderDetailStatus>,
 ): Promise<void> => {
   const current = await getSyncStatus();

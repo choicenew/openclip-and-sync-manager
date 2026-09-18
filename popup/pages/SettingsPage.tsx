@@ -41,7 +41,9 @@ import {
 import { getSettings, setSettings, type Settings } from "~storage/settings";
 import { getSyncSettings, setSyncSettings, type SyncSettings } from "~storage/syncSettings";
 import { runFullSync } from "~utils/sync/engine";
+import { authorizeGoogleOAuth, authorizeOneDriveOAuth } from "~utils/sync/provider";
 import { lightOrDark } from "~utils/sx";
+import { VERSION } from "~utils/version";
 
 export const SettingsPage = () => {
   const theme = useMantineTheme();
@@ -52,6 +54,9 @@ export const SettingsPage = () => {
     enableWebdav: false,
     enableOneDrive: false,
     enableGoogleDrive: false,
+    enableGist: false,
+    enableS3: false,
+    enableCustomRest: false,
     webdavUrl: "",
     webdavUsername: "",
     webdavPassword: "",
@@ -64,6 +69,15 @@ export const SettingsPage = () => {
     googleClientId: "",
     googleClientSecret: "",
     googleAccessToken: "",
+    gistToken: "",
+    gistId: "",
+    s3Endpoint: "",
+    s3Bucket: "",
+    s3AccessKeyId: "",
+    s3SecretAccessKey: "",
+    s3Region: "us-east-1",
+    customRestUrl: "",
+    customRestToken: "",
   });
 
   const [settings, setSet] = useState<Settings>({
@@ -84,6 +98,8 @@ export const SettingsPage = () => {
   });
 
   const [syncing, setSyncing] = useState(false);
+  const [authorizingOneDrive, setAuthorizingOneDrive] = useState(false);
+  const [authorizingGoogle, setAuthorizingGoogle] = useState(false);
 
   useEffect(() => {
     Promise.all([getSyncSettings(), getSettings(), getMasterDeviceState()]).then(
@@ -94,6 +110,70 @@ export const SettingsPage = () => {
       },
     );
   }, []);
+
+  const handleAuthorizeOneDrive = async () => {
+    if (!syncSettings.oneDriveClientId) {
+      notifications.show({
+        title: "错误",
+        message: "请先填写 Microsoft OneDrive Client ID",
+        color: "red",
+      });
+      return;
+    }
+    setAuthorizingOneDrive(true);
+    try {
+      const token = await authorizeOneDriveOAuth(syncSettings.oneDriveClientId);
+      const updated = { ...syncSettings, oneDriveAccessToken: token };
+      setSyncSet(updated);
+      await setSyncSettings(updated);
+      notifications.show({
+        title: "OneDrive 授权成功",
+        message: "已成功连接微软云盘账号！",
+        color: "teal",
+        icon: <IconCheck size={16} />,
+      });
+    } catch (e: any) {
+      notifications.show({
+        title: "OneDrive 授权失败",
+        message: e?.message || "用户取消或授权异常",
+        color: "red",
+      });
+    } finally {
+      setAuthorizingOneDrive(false);
+    }
+  };
+
+  const handleAuthorizeGoogle = async () => {
+    if (!syncSettings.googleClientId) {
+      notifications.show({
+        title: "错误",
+        message: "请先填写 Google Drive Client ID",
+        color: "red",
+      });
+      return;
+    }
+    setAuthorizingGoogle(true);
+    try {
+      const token = await authorizeGoogleOAuth(syncSettings.googleClientId);
+      const updated = { ...syncSettings, googleAccessToken: token };
+      setSyncSet(updated);
+      await setSyncSettings(updated);
+      notifications.show({
+        title: "Google Drive 授权成功",
+        message: "已成功连接谷歌云盘账号！",
+        color: "teal",
+        icon: <IconCheck size={16} />,
+      });
+    } catch (e: any) {
+      notifications.show({
+        title: "Google Drive 授权失败",
+        message: e?.message || "用户取消或授权异常",
+        color: "red",
+      });
+    } finally {
+      setAuthorizingGoogle(false);
+    }
+  };
 
   const handleSave = async () => {
     await Promise.all([
@@ -130,9 +210,9 @@ export const SettingsPage = () => {
         <Group position="apart" align="center">
           <Group spacing="xs">
             <IconSettings size="1.2rem" color={theme.colors.indigo[6]} />
-            <Title order={5}>OpenClip Sync 系统与服务设置</Title>
+            <Title order={5}>OpenClip Sync 系统与同步设置</Title>
             <Badge size="xs" color="blue">
-              v2.6.0
+              v{VERSION}
             </Badge>
           </Group>
           <Button size="xs" color="indigo" onClick={handleSave}>
@@ -150,16 +230,16 @@ export const SettingsPage = () => {
               </Text>
             </Group>
 
-            <Group spacing="lg">
+            <Group spacing="md">
               <Checkbox
-                label="Chrome Sync (谷歌浏览器内置账号静默同步)"
+                label="Chrome Sync (谷歌内置同步)"
                 checked={syncSettings.enableChromeSync}
                 onChange={(e) =>
                   setSyncSet((prev) => ({ ...prev, enableChromeSync: e.currentTarget.checked }))
                 }
               />
               <Checkbox
-                label="WebDAV (坚果云 / Nextcloud / 群晖私有云)"
+                label="WebDAV (坚果云/Nextcloud/群晖)"
                 checked={syncSettings.enableWebdav}
                 onChange={(e) =>
                   setSyncSet((prev) => ({ ...prev, enableWebdav: e.currentTarget.checked }))
@@ -173,10 +253,31 @@ export const SettingsPage = () => {
                 }
               />
               <Checkbox
-                label="Google Drive (谷歌云端硬盘)"
+                label="Google Drive (谷歌云盘)"
                 checked={syncSettings.enableGoogleDrive}
                 onChange={(e) =>
                   setSyncSet((prev) => ({ ...prev, enableGoogleDrive: e.currentTarget.checked }))
+                }
+              />
+              <Checkbox
+                label="GitHub Gist (代码片段/秘钥云)"
+                checked={syncSettings.enableGist}
+                onChange={(e) =>
+                  setSyncSet((prev) => ({ ...prev, enableGist: e.currentTarget.checked }))
+                }
+              />
+              <Checkbox
+                label="AWS S3 / MinIO (对象存储)"
+                checked={syncSettings.enableS3}
+                onChange={(e) =>
+                  setSyncSet((prev) => ({ ...prev, enableS3: e.currentTarget.checked }))
+                }
+              />
+              <Checkbox
+                label="Custom REST API (自建服务器)"
+                checked={syncSettings.enableCustomRest}
+                onChange={(e) =>
+                  setSyncSet((prev) => ({ ...prev, enableCustomRest: e.currentTarget.checked }))
                 }
               />
             </Group>
@@ -206,6 +307,167 @@ export const SettingsPage = () => {
                       onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavPassword: e.target.value }))}
                     />
                   </Group>
+                </Stack>
+              </Paper>
+            )}
+
+            {/* OneDrive 展开表单 */}
+            {syncSettings.enableOneDrive && (
+              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
+                <Stack spacing="xs">
+                  <Group position="apart">
+                    <Text fz="xs" fw={600} color="cyan.7">
+                      Microsoft OneDrive 微软云盘配置与授权登录
+                    </Text>
+                    <Badge size="xs" color={syncSettings.oneDriveAccessToken ? "green" : "yellow"}>
+                      {syncSettings.oneDriveAccessToken ? "已授权登录" : "未授权登录"}
+                    </Badge>
+                  </Group>
+                  <Group grow align="flex-end">
+                    <TextInput
+                      label="Application (Client) ID"
+                      placeholder="微软 Azure 注册的应用 Client ID"
+                      value={syncSettings.oneDriveClientId || ""}
+                      onChange={(e) => setSyncSet((prev) => ({ ...prev, oneDriveClientId: e.target.value }))}
+                    />
+                    <Button
+                      size="xs"
+                      color="cyan"
+                      loading={authorizingOneDrive}
+                      onClick={handleAuthorizeOneDrive}
+                    >
+                      {syncSettings.oneDriveAccessToken ? "重新授权微软账号" : "一键 OAuth 登录授权"}
+                    </Button>
+                  </Group>
+                  <PasswordInput
+                    label="OneDrive Access Token (自动获取或手动填入)"
+                    placeholder="OAuth 登录后自动填入 Token"
+                    value={syncSettings.oneDriveAccessToken || ""}
+                    onChange={(e) => setSyncSet((prev) => ({ ...prev, oneDriveAccessToken: e.target.value }))}
+                  />
+                </Stack>
+              </Paper>
+            )}
+
+            {/* Google Drive 展开表单 */}
+            {syncSettings.enableGoogleDrive && (
+              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
+                <Stack spacing="xs">
+                  <Group position="apart">
+                    <Text fz="xs" fw={600} color="yellow.8">
+                      Google Drive 谷歌云端硬盘配置与授权登录
+                    </Text>
+                    <Badge size="xs" color={syncSettings.googleAccessToken ? "green" : "yellow"}>
+                      {syncSettings.googleAccessToken ? "已授权登录" : "未授权登录"}
+                    </Badge>
+                  </Group>
+                  <Group grow align="flex-end">
+                    <TextInput
+                      label="Google OAuth Client ID"
+                      placeholder="谷歌 Cloud Console 申请的 Client ID"
+                      value={syncSettings.googleClientId || ""}
+                      onChange={(e) => setSyncSet((prev) => ({ ...prev, googleClientId: e.target.value }))}
+                    />
+                    <Button
+                      size="xs"
+                      color="yellow"
+                      loading={authorizingGoogle}
+                      onClick={handleAuthorizeGoogle}
+                    >
+                      {syncSettings.googleAccessToken ? "重新授权谷歌账号" : "一键 OAuth 登录授权"}
+                    </Button>
+                  </Group>
+                  <PasswordInput
+                    label="Google Access Token (自动获取或手动填入)"
+                    placeholder="OAuth 登录后自动填入 Token"
+                    value={syncSettings.googleAccessToken || ""}
+                    onChange={(e) => setSyncSet((prev) => ({ ...prev, googleAccessToken: e.target.value }))}
+                  />
+                </Stack>
+              </Paper>
+            )}
+
+            {/* GitHub Gist 展开表单 */}
+            {syncSettings.enableGist && (
+              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
+                <Stack spacing="xs">
+                  <Text fz="xs" fw={600} color="indigo">
+                    GitHub Gist 参数配置
+                  </Text>
+                  <Group grow>
+                    <PasswordInput
+                      label="GitHub Personal Access Token"
+                      placeholder="ghp_xxxxxxxxxxxx"
+                      value={syncSettings.gistToken || ""}
+                      onChange={(e) => setSyncSet((prev) => ({ ...prev, gistToken: e.target.value }))}
+                    />
+                    <TextInput
+                      label="Gist ID (留空则自动创建)"
+                      placeholder="留空将首次推定时自动创建私有 Gist"
+                      value={syncSettings.gistId || ""}
+                      onChange={(e) => setSyncSet((prev) => ({ ...prev, gistId: e.target.value }))}
+                    />
+                  </Group>
+                </Stack>
+              </Paper>
+            )}
+
+            {/* AWS S3 / MinIO 展开表单 */}
+            {syncSettings.enableS3 && (
+              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
+                <Stack spacing="xs">
+                  <Text fz="xs" fw={600} color="indigo">
+                    AWS S3 / MinIO / 兼容对象存储配置
+                  </Text>
+                  <Group grow>
+                    <TextInput
+                      label="Endpoint 服务地址"
+                      placeholder="https://s3.us-east-1.amazonaws.com 或 http://127.0.0.1:9000"
+                      value={syncSettings.s3Endpoint || ""}
+                      onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Endpoint: e.target.value }))}
+                    />
+                    <TextInput
+                      label="Bucket 桶名称"
+                      placeholder="my-clip-bucket"
+                      value={syncSettings.s3Bucket || ""}
+                      onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Bucket: e.target.value }))}
+                    />
+                  </Group>
+                  <Group grow>
+                    <TextInput
+                      label="Access Key ID"
+                      value={syncSettings.s3AccessKeyId || ""}
+                      onChange={(e) => setSyncSet((prev) => ({ ...prev, s3AccessKeyId: e.target.value }))}
+                    />
+                    <PasswordInput
+                      label="Secret Access Key"
+                      value={syncSettings.s3SecretAccessKey || ""}
+                      onChange={(e) => setSyncSet((prev) => ({ ...prev, s3SecretAccessKey: e.target.value }))}
+                    />
+                  </Group>
+                </Stack>
+              </Paper>
+            )}
+
+            {/* Custom REST API 展开表单 */}
+            {syncSettings.enableCustomRest && (
+              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
+                <Stack spacing="xs">
+                  <Text fz="xs" fw={600} color="indigo">
+                    Custom REST API 自建服务器配置
+                  </Text>
+                  <TextInput
+                    label="API Endpoint URL"
+                    placeholder="https://api.my-server.com/v1/sync"
+                    value={syncSettings.customRestUrl || ""}
+                    onChange={(e) => setSyncSet((prev) => ({ ...prev, customRestUrl: e.target.value }))}
+                  />
+                  <PasswordInput
+                    label="Authorization Token (可选)"
+                    placeholder="Bearer token or secret key"
+                    value={syncSettings.customRestToken || ""}
+                    onChange={(e) => setSyncSet((prev) => ({ ...prev, customRestToken: e.target.value }))}
+                  />
                 </Stack>
               </Paper>
             )}

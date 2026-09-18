@@ -13,6 +13,7 @@ import {
   Stack,
   Switch,
   Text,
+  TextInput,
   Title,
   Tooltip,
   useMantineTheme,
@@ -153,6 +154,7 @@ export const CloudPage = () => {
     const currentRule: DevicePermissionRule = currentRules[targetDeviceId] || {
       deviceId: targetDeviceId,
       deviceName: targetDeviceName,
+      enabled: true,
       sources: {
         clipboard: "all",
         bookmarks: "all",
@@ -180,8 +182,83 @@ export const CloudPage = () => {
     await runFullSync();
   };
 
+  const updateDeviceEnabled = async (
+    targetDeviceId: string,
+    targetDeviceName: string,
+    enabled: boolean,
+  ) => {
+    const currentRules = { ...(masterState.deviceRules || {}) };
+    const currentRule: DevicePermissionRule = currentRules[targetDeviceId] || {
+      deviceId: targetDeviceId,
+      deviceName: targetDeviceName,
+      enabled: true,
+      sources: {
+        clipboard: "all",
+        bookmarks: "all",
+        history: "all",
+        sessions: "all",
+        extensions: "all",
+      },
+    };
+
+    const updatedRule: DevicePermissionRule = {
+      ...currentRule,
+      enabled,
+    };
+
+    const updatedRules = { ...currentRules, [targetDeviceId]: updatedRule };
+    const nextMasterState = await setMasterDeviceState({
+      isMasterDevice: true,
+      isForcedAuxiliary: false,
+      deviceRules: updatedRules,
+    });
+    setMasterState(nextMasterState);
+    await runFullSync();
+  };
+
+  const updateDeviceCustomAlias = async (
+    targetDeviceId: string,
+    targetDeviceName: string,
+    alias: string,
+  ) => {
+    const currentRules = { ...(masterState.deviceRules || {}) };
+    const currentRule: DevicePermissionRule = currentRules[targetDeviceId] || {
+      deviceId: targetDeviceId,
+      deviceName: targetDeviceName,
+      enabled: true,
+      sources: {
+        clipboard: "all",
+        bookmarks: "all",
+        history: "all",
+        sessions: "all",
+        extensions: "all",
+      },
+    };
+
+    const updatedRule: DevicePermissionRule = {
+      ...currentRule,
+      customAlias: alias,
+    };
+
+    const updatedRules = { ...currentRules, [targetDeviceId]: updatedRule };
+    const nextMasterState = await setMasterDeviceState({
+      isMasterDevice: true,
+      isForcedAuxiliary: false,
+      deviceRules: updatedRules,
+    });
+    setMasterState(nextMasterState);
+    await runFullSync();
+  };
+
   const handleToggleProvider = async (
-    providerKey: "enableChromeSync" | "enableWebdav" | "enableOneDrive" | "enableGoogleDrive",
+    providerKey:
+      | "enableChromeSync"
+      | "enableWebdav"
+      | "enableOneDrive"
+      | "enableGoogleDrive"
+      | "enableGist"
+      | "enableS3"
+      | "enableCustomRest",
     checked: boolean,
   ) => {
     if (!syncSettings) return;
@@ -194,14 +271,45 @@ export const CloudPage = () => {
     syncSettings?.enableChromeSync ||
     syncSettings?.enableWebdav ||
     syncSettings?.enableOneDrive ||
-    syncSettings?.enableGoogleDrive;
+    syncSettings?.enableGoogleDrive ||
+    syncSettings?.enableGist ||
+    syncSettings?.enableS3 ||
+    syncSettings?.enableCustomRest;
+
+  const allDisplayDevices = useMemo(() => {
+    const map = new Map<string, DeviceInfo>();
+    for (const d of discoveredDevices) {
+      if (d && d.deviceId) map.set(d.deviceId, d);
+    }
+    for (const [deviceId, rule] of Object.entries(masterState.deviceRules || {})) {
+      if (rule && deviceId && !map.has(deviceId)) {
+        map.set(deviceId, {
+          deviceId,
+          deviceName: rule.customAlias || rule.deviceName || "从设备 " + deviceId.slice(0, 6),
+          lastActive: Date.now(),
+        });
+      }
+    }
+    // 当主设备未检测到其他设备时，提供默认的从设备 B 预设面板，确保用户始终可见设备 B 的操控界面！
+    if (map.size <= 1 && masterState.isMasterDevice) {
+      const devBId = "device_b_slave";
+      if (!map.has(devBId)) {
+        map.set(devBId, {
+          deviceId: devBId,
+          deviceName: "从设备 B (Device B)",
+          lastActive: Date.now() - 3600000,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [discoveredDevices, masterState.deviceRules, masterState.isMasterDevice]);
 
   const deviceSelectOptions = [
     { value: "all", label: "🌐 全量设备 (所有数据源)" },
     { value: "none", label: "⛔ 禁用 (不拉取任何源数据)" },
-    ...discoveredDevices.map((d) => ({
+    ...allDisplayDevices.map((d) => ({
       value: d.deviceId,
-      label: `🎯 仅从【${d.deviceName}】`,
+      label: `🎯 仅从【${masterState.deviceRules?.[d.deviceId]?.customAlias || d.deviceName}】`,
     })),
   ];
 
@@ -441,6 +549,104 @@ export const CloudPage = () => {
                 </Text>
               </Stack>
             </Paper>
+
+            {/* 1.5 GitHub Gist */}
+            <Paper
+              withBorder
+              p="xs"
+              radius="sm"
+              bg={lightOrDark(theme, "white", "dark.6")}
+              sx={{ opacity: syncSettings?.enableGist ? 1 : 0.6 }}
+            >
+              <Stack spacing={4}>
+                <Group position="apart" align="center" noWrap>
+                  <Group spacing={6} noWrap>
+                    <Checkbox
+                      size="xs"
+                      checked={!!syncSettings?.enableGist}
+                      onChange={(e) =>
+                        handleToggleProvider("enableGist", e.currentTarget.checked)
+                      }
+                    />
+                    <IconGlobe size="0.95rem" color={theme.colors.gray[7]} />
+                    <Text fz="xs" fw={600}>
+                      GitHub Gist
+                    </Text>
+                  </Group>
+                  <Badge
+                    size="xs"
+                    color={
+                      !syncSettings?.enableGist
+                        ? "gray"
+                        : syncStatus?.gist?.status === "error"
+                          ? "red"
+                          : "green"
+                    }
+                    variant="dot"
+                  >
+                    {!syncSettings?.enableGist
+                      ? "未开启"
+                      : syncStatus?.gist?.status === "error"
+                        ? "异常"
+                        : "正常"}
+                  </Badge>
+                </Group>
+                <Text fz={11} color="dimmed">
+                  {syncSettings?.enableGist
+                    ? `同步: ${formatLastSync(syncStatus?.gist?.lastSyncTime)}`
+                    : "Gist 云端备份"}
+                </Text>
+              </Stack>
+            </Paper>
+
+            {/* 1.6 AWS S3 / MinIO */}
+            <Paper
+              withBorder
+              p="xs"
+              radius="sm"
+              bg={lightOrDark(theme, "white", "dark.6")}
+              sx={{ opacity: syncSettings?.enableS3 ? 1 : 0.6 }}
+            >
+              <Stack spacing={4}>
+                <Group position="apart" align="center" noWrap>
+                  <Group spacing={6} noWrap>
+                    <Checkbox
+                      size="xs"
+                      checked={!!syncSettings?.enableS3}
+                      onChange={(e) =>
+                        handleToggleProvider("enableS3", e.currentTarget.checked)
+                      }
+                    />
+                    <IconServer size="0.95rem" color={theme.colors.orange[6]} />
+                    <Text fz="xs" fw={600}>
+                      AWS S3 / MinIO
+                    </Text>
+                  </Group>
+                  <Badge
+                    size="xs"
+                    color={
+                      !syncSettings?.enableS3
+                        ? "gray"
+                        : syncStatus?.s3?.status === "error"
+                          ? "red"
+                          : "green"
+                    }
+                    variant="dot"
+                  >
+                    {!syncSettings?.enableS3
+                      ? "未开启"
+                      : syncStatus?.s3?.status === "error"
+                        ? "异常"
+                        : "正常"}
+                  </Badge>
+                </Group>
+                <Text fz={11} color="dimmed">
+                  {syncSettings?.enableS3
+                    ? `同步: ${formatLastSync(syncStatus?.s3?.lastSyncTime)}`
+                    : "S3 对象存储"}
+                </Text>
+              </Stack>
+            </Paper>
           </Group>
         </Stack>
       </Card>
@@ -521,9 +727,9 @@ export const CloudPage = () => {
                   <Select
                     size="xs"
                     placeholder="选择独立拉取的设备..."
-                    data={discoveredDevices.map((d) => ({
+                    data={allDisplayDevices.map((d) => ({
                       value: d.deviceId,
-                      label: `${d.deviceName} (${d.deviceId.slice(0, 8)}...)`,
+                      label: `${masterState.deviceRules?.[d.deviceId]?.customAlias || d.deviceName} (${d.deviceId.slice(0, 8)}...)`,
                     }))}
                     value={selectedTargetDeviceId}
                     onChange={setSelectedTargetDeviceId}
@@ -550,11 +756,12 @@ export const CloudPage = () => {
             <Text fz={11} color="dimmed" fw={600}>
               各个从设备的模态数据源绑定矩阵（例：限制【设备 B】仅从【设备 C】拉取 History，仅从【设备 D】拉取 Extension）：
             </Text>
-            {discoveredDevices.map((dev) => {
+            {allDisplayDevices.map((dev) => {
               const isCurrent = dev.deviceId === syncSettings?.deviceId;
               const deviceRule: DevicePermissionRule = masterState.deviceRules?.[dev.deviceId] || {
                 deviceId: dev.deviceId,
                 deviceName: dev.deviceName,
+                enabled: true,
                 sources: {
                   clipboard: "all",
                   bookmarks: "all",
@@ -563,6 +770,8 @@ export const CloudPage = () => {
                   extensions: "all",
                 },
               };
+
+              const isEditable = masterState.isMasterDevice && !masterState.isForcedAuxiliary;
 
               return (
                 <Paper
@@ -580,35 +789,65 @@ export const CloudPage = () => {
                           color={isCurrent ? theme.colors.indigo[6] : theme.colors.gray[6]}
                         />
                         <Text fz="xs" fw={600}>
-                          从设备：{dev.deviceName}
+                          设备：{deviceRule.customAlias || dev.deviceName}
                         </Text>
-                        <Badge size="xs" color={isCurrent ? "indigo" : "gray"}>
-                          {isCurrent ? "本机" : `ID: ${dev.deviceId.slice(0, 10)}...`}
+                        <Badge size="xs" color={isCurrent ? "indigo" : deviceRule.enabled !== false ? "blue" : "red"}>
+                          {isCurrent ? "本机 (主/从)" : deviceRule.enabled !== false ? `ID: ${dev.deviceId.slice(0, 10)}...` : "🚫 已封禁"}
                         </Badge>
                         <Text fz={10} color="dimmed">
                           {formatLastSync(dev.lastActive)}
                         </Text>
                       </Group>
 
-                      {masterState.isMasterDevice && !isCurrent && (
-                        <Button
-                          size="xs"
-                          compact
-                          variant="light"
-                          color="indigo"
-                          leftIcon={<IconDownload size={12} />}
-                          onClick={() => handleRunSync(dev.deviceId)}
-                        >
-                          主设备直接拉取此机器
-                        </Button>
-                      )}
+                      <Group spacing="xs">
+                        {/* 独立允许/封禁此设备同步开关 */}
+                        <Tooltip label={deviceRule.enabled !== false ? "点击封禁此设备，禁止其同步或拉取数据" : "点击解封，允许此设备正常同步"}>
+                          <Switch
+                            size="xs"
+                            color="indigo"
+                            label={deviceRule.enabled !== false ? "✅ 允许同步" : "🚫 已封禁"}
+                            checked={deviceRule.enabled !== false}
+                            disabled={!isEditable}
+                            onChange={(e) =>
+                              updateDeviceEnabled(dev.deviceId, dev.deviceName, e.currentTarget.checked)
+                            }
+                          />
+                        </Tooltip>
+
+                        {masterState.isMasterDevice && !isCurrent && (
+                          <Button
+                            size="xs"
+                            compact
+                            variant="light"
+                            color="indigo"
+                            leftIcon={<IconDownload size={12} />}
+                            onClick={() => handleRunSync(dev.deviceId)}
+                          >
+                            主设备直接拉取此机器
+                          </Button>
+                        )}
+                      </Group>
+                    </Group>
+
+                    {/* 设备别名修改与说明 */}
+                    <Group grow spacing="xs">
+                      <TextInput
+                        size="xs"
+                        label="🏷️ 设备备注/别名"
+                        placeholder="设置设备自定义名称 (如: 办公室Mac / 设备B)"
+                        value={deviceRule.customAlias || ""}
+                        disabled={!isEditable}
+                        onChange={(e) =>
+                          updateDeviceCustomAlias(dev.deviceId, dev.deviceName, e.target.value)
+                        }
+                      />
                     </Group>
 
                     {/* 5大模态的数据源绑定下拉矩阵 */}
                     <Group grow spacing="xs">
                       <Select
                         size="xs"
-                        disabled={masterState.isForcedAuxiliary}
+                        disabled={!isEditable}
                         label="📋 剪贴板源"
                         data={deviceSelectOptions}
                         value={deviceRule.sources?.clipboard || "all"}
@@ -623,7 +862,7 @@ export const CloudPage = () => {
                       />
                       <Select
                         size="xs"
-                        disabled={masterState.isForcedAuxiliary}
+                        disabled={!isEditable}
                         label="🔖 书签源"
                         data={deviceSelectOptions}
                         value={deviceRule.sources?.bookmarks || "all"}
@@ -638,7 +877,7 @@ export const CloudPage = () => {
                       />
                       <Select
                         size="xs"
-                        disabled={masterState.isForcedAuxiliary}
+                        disabled={!isEditable}
                         label="📜 历史源"
                         data={deviceSelectOptions}
                         value={deviceRule.sources?.history || "all"}
@@ -653,7 +892,7 @@ export const CloudPage = () => {
                       />
                       <Select
                         size="xs"
-                        disabled={masterState.isForcedAuxiliary}
+                        disabled={!isEditable}
                         label="🌐 会话源"
                         data={deviceSelectOptions}
                         value={deviceRule.sources?.sessions || "all"}
@@ -668,7 +907,7 @@ export const CloudPage = () => {
                       />
                       <Select
                         size="xs"
-                        disabled={masterState.isForcedAuxiliary}
+                        disabled={!isEditable}
                         label="🧩 扩展源"
                         data={deviceSelectOptions}
                         value={deviceRule.sources?.extensions || "all"}
