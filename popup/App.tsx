@@ -304,7 +304,7 @@ export const App = () => {
                 label: (
                   <Group align="center" spacing={4} noWrap>
                     <IconClipboardList size="0.85rem" />
-                    <Text size="xs">📋 剪贴板</Text>
+                    <Text size="xs">剪贴板</Text>
                   </Group>
                 ),
                 value: Tab.Enum.Clipboard,
@@ -313,7 +313,7 @@ export const App = () => {
                 label: (
                   <Group align="center" spacing={4} noWrap>
                     <IconCloudComputing size="0.85rem" />
-                    <Text size="xs">☁️ 云同步</Text>
+                    <Text size="xs">云同步</Text>
                   </Group>
                 ),
                 value: Tab.Enum.Cloud,
@@ -322,7 +322,7 @@ export const App = () => {
                 label: (
                   <Group align="center" spacing={4} noWrap>
                     <IconGlobe size="0.85rem" />
-                    <Text size="xs">🌐 会话标签</Text>
+                    <Text size="xs">会话标签</Text>
                   </Group>
                 ),
                 value: Tab.Enum.Sessions,
@@ -331,7 +331,7 @@ export const App = () => {
                 label: (
                   <Group align="center" spacing={4} noWrap>
                     <IconBookmark size="0.85rem" />
-                    <Text size="xs">🔖 书签</Text>
+                    <Text size="xs">书签</Text>
                   </Group>
                 ),
                 value: Tab.Enum.Bookmarks,
@@ -340,7 +340,7 @@ export const App = () => {
                 label: (
                   <Group align="center" spacing={4} noWrap>
                     <IconHistory size="0.85rem" />
-                    <Text size="xs">📜 历史</Text>
+                    <Text size="xs">历史</Text>
                   </Group>
                 ),
                 value: Tab.Enum.History,
@@ -349,7 +349,7 @@ export const App = () => {
                 label: (
                   <Group align="center" spacing={4} noWrap>
                     <IconPuzzle size="0.85rem" />
-                    <Text size="xs">🧩 扩展</Text>
+                    <Text size="xs">扩展</Text>
                   </Group>
                 ),
                 value: Tab.Enum.Extensions,
@@ -358,7 +358,7 @@ export const App = () => {
                 label: (
                   <Group align="center" spacing={4} noWrap>
                     <IconDevices size="0.85rem" />
-                    <Text size="xs">💻 设备墙</Text>
+                    <Text size="xs">设备墙</Text>
                   </Group>
                 ),
                 value: Tab.Enum.Devices,
@@ -367,7 +367,7 @@ export const App = () => {
                 label: (
                   <Group align="center" spacing={4} noWrap>
                     <IconAdjustmentsHorizontal size="0.85rem" />
-                    <Text size="xs">⚙️ 设置</Text>
+                    <Text size="xs">设置</Text>
                   </Group>
                 ),
                 value: Tab.Enum.Settings,

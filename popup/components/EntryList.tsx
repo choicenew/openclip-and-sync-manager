@@ -1,6 +1,6 @@
 import { Box, Checkbox, Divider, Group, rem, Stack, Text, Title, Tooltip } from "@mantine/core";
 import { modals } from "@mantine/modals";
-import { IconFold, IconStar, IconTrash } from "@tabler/icons-react";
+import { IconFold, IconPin, IconStar, IconTrash } from "@tabler/icons-react";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
@@ -8,9 +8,10 @@ import { FixedSizeList } from "react-window";
 
 import { useEntryListNavigation } from "~popup/hooks/useEntryListNavigation";
 import { useSet } from "~popup/hooks/useSet";
-import { favoriteEntryIdsAtom, searchAtom } from "~popup/states/atoms";
+import { favoriteEntryIdsAtom, pinnedEntryIdsAtom, searchAtom } from "~popup/states/atoms";
 import { handleMutation } from "~popup/utils/mutation";
 import { addFavoriteEntryIds, deleteFavoriteEntryIds } from "~storage/favoriteEntryIds";
+import { addPinnedEntryIds, deletePinnedEntryIds } from "~storage/pinnedEntryIds";
 import type { Entry } from "~types/entry";
 import { deleteEntries } from "~utils/storage";
 import { defaultBorderColor } from "~utils/sx";
@@ -54,6 +55,8 @@ const EntryRowRenderer = ({
 export const EntryList = ({ entries, noEntriesOverlay }: Props) => {
   const favoriteEntryIds = useAtomValue(favoriteEntryIdsAtom) || [];
   const favoriteEntryIdsSet = new Set<string>(favoriteEntryIds);
+  const pinnedEntryIds = useAtomValue(pinnedEntryIdsAtom) || [];
+  const pinnedEntryIdsSet = new Set<string>(pinnedEntryIds);
   const search = useAtomValue(searchAtom);
   const { listRef, selectedEntryIndex } = useEntryListNavigation(entries);
 
@@ -93,6 +96,20 @@ export const EntryList = ({ entries, noEntriesOverlay }: Props) => {
         />
         <Group align="center" w="100%" position="apart">
           <Group align="center" spacing={0}>
+            <Tooltip label={<Text fz="xs">Pin / Unpin</Text>} disabled={selectedEntryIds.size === 0}>
+              <CommonActionIcon
+                disabled={selectedEntryIds.size === 0}
+                onClick={handleMutation(() =>
+                  Array.from(selectedEntryIds).every((selectedEntryId) =>
+                    pinnedEntryIdsSet.has(selectedEntryId),
+                  )
+                    ? deletePinnedEntryIds(Array.from(selectedEntryIds))
+                    : addPinnedEntryIds(Array.from(selectedEntryIds)),
+                )}
+              >
+                <IconPin size="1rem" />
+              </CommonActionIcon>
+            </Tooltip>
             <Tooltip label={<Text fz="xs">Favorite</Text>} disabled={selectedEntryIds.size === 0}>
               <CommonActionIcon
                 disabled={selectedEntryIds.size === 0}

@@ -88,10 +88,77 @@ export async function importBookmarkUrls(urls: { title: string; url: string }[])
   return addedCount;
 }
 
+/** 递归将云端整棵书签树及文件夹层级合并写入本地原生浏览器书签树 */
+export async function importBookmarksTree(
+  remoteNodes: SyncBookmark[],
+  targetParentId: string = "2",
+): Promise<number> {
+  if (typeof chrome === "undefined" || !chrome.bookmarks) return 0;
+  let importedCount = 0;
+
+  try {
+    const localTree = await chrome.bookmarks.getTree();
+    const localUrls = extractBookmarkUrls(localTree.map(mapNode));
+
+    async function walkAndCreate(nodes: SyncBookmark[], currentParentId: string) {
+      for (const node of nodes) {
+        if (!node) continue;
+        // 根目录 0 / 1 / 2 / 3 节点递归处理其子元素
+        if (node.id === "0" || node.id === "1" || node.id === "2" || node.id === "3") {
+          if (node.children?.length) {
+            await walkAndCreate(node.children, node.id === "0" ? currentParentId : node.id);
+          }
+          continue;
+        }
+
+        // 叶子书签节点 (有 URL)
+        if (node.url) {
+          if (!localUrls.has(node.url)) {
+            await chrome.bookmarks.create({
+              parentId: currentParentId,
+              title: node.title || node.url,
+              url: node.url,
+            });
+            localUrls.set(node.url, { title: node.title, url: node.url });
+            importedCount++;
+          }
+        }
+        // 文件夹节点 (无 URL, 有目录名)
+        else if (node.title) {
+          let folderId = currentParentId;
+          try {
+            const children = await chrome.bookmarks.getChildren(currentParentId);
+            const existingFolder = children.find((c) => !c.url && c.title === node.title);
+            if (existingFolder) {
+              folderId = existingFolder.id;
+            } else {
+              const newFolder = await chrome.bookmarks.create({
+                parentId: currentParentId,
+                title: node.title,
+              });
+              folderId = newFolder.id;
+            }
+          } catch (e) {
+            // 回退到默认父级
+          }
+
+          if (node.children?.length) {
+            await walkAndCreate(node.children, folderId);
+          }
+        }
+      }
+    }
+
+    await walkAndCreate(remoteNodes, targetParentId);
+  } catch (err) {
+    console.warn("[BookmarksHandler] Failed to import bookmarks tree:", err);
+  }
+
+  return importedCount;
+}
+
 /** 自动将云端拉取到的远程书签合并写入本机浏览器书签树 */
 export async function syncRemoteBookmarksToLocal(remoteBookmarks: SyncBookmark[]): Promise<number> {
   if (!remoteBookmarks || remoteBookmarks.length === 0) return 0;
-  const map = extractBookmarkUrls(remoteBookmarks);
-  const urls = Array.from(map.values());
-  return await importBookmarkUrls(urls);
+  return await importBookmarksTree(remoteBookmarks);
 }

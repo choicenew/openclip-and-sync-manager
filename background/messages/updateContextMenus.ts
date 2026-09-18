@@ -21,20 +21,21 @@ export type UpdateContextMenusRequestBody = undefined;
 export type UpdateContextMenusResponseBody = Record<PropertyKey, never>;
 
 export const handleUpdateContextMenusRequest = debounce(async () => {
-  const [localEntries, localFavoriteEntryIds, localEntryIdToTags, settings, refreshToken, user] =
-    await Promise.all([
-      getEntries(),
-      getFavoriteEntryIds(),
-      getEntryIdToTags(),
-      getSettings(),
-      getRefreshToken(),
-      db.getAuth(),
-    ]);
+  const settings = await getSettings();
 
   if (!settings.pasteFromContextMenu) {
     chrome.contextMenus.removeAll();
     return;
   }
+
+  const [localEntries, localFavoriteEntryIds, localEntryIdToTags, refreshToken, user] =
+    await Promise.all([
+      getEntries(),
+      getFavoriteEntryIds(),
+      getEntryIdToTags(),
+      getRefreshToken(),
+      db.getAuth(),
+    ]);
 
   let cloudEntries: Entry[] = [];
   let cloudFavoriteEntryIds: string[] = [];
