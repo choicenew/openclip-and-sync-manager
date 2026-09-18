@@ -1,11 +1,21 @@
-OpenClip Sync Public License (Modified Open Source Terms)
+MIT License
 
 Copyright (c) 2026 ChoiceNew / OpenClip Sync Authors.
 Repository: https://github.com/choicenew/openclip
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, subject to the following mandatory conditions:
+in the Software without restriction, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+===============================================================================
+ADDITIONAL TERMS AND CONDITIONS (附加开源特定声明与合并授权条款)
+===============================================================================
+
+In addition to the standard MIT License conditions above, any exercise of rights 
+granted by this License is subject to the following mandatory terms:
 
 1. ORIGINAL NAME PRESERVATION (保留原名声明):
    Any derivative works, forks, modifications, or redistributions of this Software 
@@ -25,6 +35,8 @@ in the Software without restriction, subject to the following mandatory conditio
    author attributions MUST NOT be removed, modified, hidden, or altered in any 
    user interface, documentation, or derivative source code.
    不得删除、修改或隐藏软件界面及文档中的原始仓库链接 (https://github.com/choicenew/openclip)。
+
+===============================================================================
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

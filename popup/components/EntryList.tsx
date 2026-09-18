@@ -135,28 +135,25 @@ export const EntryList = ({ entries, noEntriesOverlay }: Props) => {
                 <IconTrash size="1rem" />
               </CommonActionIcon>
             </Tooltip>
-            {/* https://github.com/clauderic/dnd-kit/issues/1043 */}
-            {process.env.PLASMO_TARGET !== "firefox-mv2" && (
-              <Tooltip label={<Text fz="xs">Merge</Text>} disabled={selectedEntryIds.size < 2}>
-                <CommonActionIcon
-                  disabled={selectedEntryIds.size < 2}
-                  onClick={() =>
-                    modals.open({
-                      padding: 0,
-                      size: "xl",
-                      withCloseButton: false,
-                      children: (
-                        <MergeModalContent
-                          initialEntries={entries.filter((entry) => selectedEntryIds.has(entry.id))}
-                        />
-                      ),
-                    })
-                  }
-                >
-                  <IconFold size="1rem" />
-                </CommonActionIcon>
-              </Tooltip>
-            )}
+            <Tooltip label={<Text fz="xs">合并选中的多条剪贴板记录</Text>} disabled={selectedEntryIds.size < 2}>
+              <CommonActionIcon
+                disabled={selectedEntryIds.size < 2}
+                onClick={() =>
+                  modals.open({
+                    padding: 0,
+                    size: "xl",
+                    withCloseButton: false,
+                    children: (
+                      <MergeModalContent
+                        initialEntries={entries.filter((entry) => selectedEntryIds.has(entry.id))}
+                      />
+                    ),
+                  })
+                }
+              >
+                <IconFold size="1rem" />
+              </CommonActionIcon>
+            </Tooltip>
           </Group>
           <Text fz="xs">
             {selectedEntryIds.size} of {entries.length} selected
