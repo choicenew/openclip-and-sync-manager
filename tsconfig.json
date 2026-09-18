@@ -1,0 +1,19 @@
+{
+  "extends": "plasmo/templates/tsconfig.base",
+  "exclude": ["node_modules"],
+  "include": [".plasmo/index.d.ts", "./**/*.ts", "./**/*.tsx"],
+  "compilerOptions": {
+    "paths": {
+      "~*": ["./*"],
+    },
+    "baseUrl": ".",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+  },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs",
+      "verbatimModuleSyntax": false,
+    },
+  },
+}
