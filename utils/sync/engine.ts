@@ -43,7 +43,7 @@ export async function getLocalMultiModalPayload(): Promise<MultiModalSyncPayload
 
   const [bookmarks, history, currentSession, extensions] = await Promise.all([
     modalities.bookmarks ? exportBookmarksTree() : Promise.resolve([]),
-    modalities.history ? exportHistory(30) : Promise.resolve([]),
+    modalities.history ? exportHistory(7, 300) : Promise.resolve([]),
     modalities.sessions
       ? exportSession(deviceId, deviceName)
       : Promise.resolve({ id: "", deviceId, deviceName, savedAt: "", tabs: [] }),

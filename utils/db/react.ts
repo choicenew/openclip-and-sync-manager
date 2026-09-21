@@ -101,7 +101,7 @@ function useQuery<Q extends Record<string, unknown> | null>(query: Q): QueryResu
     }
 
     run(query as Record<string, unknown>);
-  });
+  }, [queryKey, run]);
 
   return result;
 }
