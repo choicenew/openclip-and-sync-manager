@@ -66,7 +66,7 @@ export const watchCloudEntries = async (
 ) => {
   let fetching = false;
 
-  // 优化高频数据库查询轮询至 15000ms，大幅减少堆内存缓存分配
+  // 优化轮询间隔至 60000ms (60s)，极大降减后台背景常驻与 V8 堆内存开销
   w.setInterval(async () => {
     if (fetching) {
       return;
@@ -84,5 +84,5 @@ export const watchCloudEntries = async (
     } finally {
       fetching = false;
     }
-  }, 15000);
+  }, 60000);
 };

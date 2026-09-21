@@ -154,17 +154,32 @@ export const saveCloudDataToLocal = async (cloudData: CloudData): Promise<void> 
   }
 };
 
-// ─── 内部缓存 ───────────────────────────────────────────
+// ─── 内部缓存与 TTL 智能管理 ───────────────────────────────────────────
 let _cache: CloudData | null = null;
 let _connected = false;
+let _cacheTimer: ReturnType<typeof setTimeout> | null = null;
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟无操作后自动置空，释放 V8 堆内存
+
+const resetCacheTimer = () => {
+  if (_cacheTimer) clearTimeout(_cacheTimer);
+  _cacheTimer = setTimeout(() => {
+    _cache = null;
+    _cacheTimer = null;
+  }, CACHE_TTL_MS);
+};
 
 const ensureCache = async (): Promise<CloudData> => {
-  if (_cache) return _cache;
+  if (_cache) {
+    resetCacheTimer();
+    return _cache;
+  }
   const local = await getLocalAsCloudData();
   const provider = await getActiveProvider();
   if (!provider || !(await provider.isAvailable())) {
     _connected = false;
     _cache = local;
+    resetCacheTimer();
     return _cache;
   }
   _connected = true;
@@ -181,6 +196,7 @@ const ensureCache = async (): Promise<CloudData> => {
     _cache = local;
     await setSyncStatus({ status: "error", message: err?.message || "拉取数据失败" });
   }
+  resetCacheTimer();
   return _cache;
 };
 
@@ -200,6 +216,7 @@ const flushCache = async (): Promise<void> => {
       message: "同步成功",
       itemCount: _cache.entries.length,
     });
+    resetCacheTimer();
   }
 };
 
@@ -369,6 +386,10 @@ const db = {
   /** 重置缓存，下次访问时重新从 Provider 拉取 */
   invalidateCache() {
     _cache = null;
+    if (_cacheTimer) {
+      clearTimeout(_cacheTimer);
+      _cacheTimer = null;
+    }
   },
 };
 
