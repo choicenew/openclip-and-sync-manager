@@ -1,3 +1,5 @@
+import { Storage } from "@plasmohq/storage";
+
 export interface ModalityPermissions {
   clipboard: boolean;
   bookmarks: boolean;
