@@ -41,3 +41,5 @@ keys.json
 # dev
 /.idea/
 /.letta/
+/ref
+
