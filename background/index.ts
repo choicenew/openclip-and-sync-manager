@@ -13,6 +13,7 @@ import { DisplayMode } from "~types/displayMode";
 import { setActionIconAndBadgeBackgroundColor } from "~utils/actionBadge";
 import { watchClipboard, watchCloudEntries } from "~utils/background";
 import db from "~utils/db/core";
+import { autoSaveSessionSnapshot } from "~storage/syncedSessions";
 import { simplePathBasename } from "~utils/simplePath";
 import { getEntries } from "~utils/storage";
 
@@ -130,7 +131,12 @@ if (process.env.PLASMO_TARGET !== "firefox-mv2") {
 }
 
 chrome.runtime.onStartup.addListener(async () => {
-  await Promise.all([setupOffscreenDocument(), setupAction(), handleUpdateContextMenusRequest()]);
+  await Promise.all([
+    setupOffscreenDocument(),
+    setupAction(),
+    handleUpdateContextMenusRequest(),
+    autoSaveSessionSnapshot("启动自动备份").catch(() => {}),
+  ]);
 });
 
 chrome.tabs.onActivated.addListener(async () => {
@@ -138,6 +144,8 @@ chrome.tabs.onActivated.addListener(async () => {
 });
 
 chrome.runtime.onSuspend.addListener(async () => {
+  await autoSaveSessionSnapshot("关闭自动备份").catch(() => {});
+
   // Firefox MV2 does not support chrome.offscreen.
   if (process.env.PLASMO_TARGET === "firefox-mv2") {
     return;
