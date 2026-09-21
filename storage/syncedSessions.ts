@@ -41,6 +41,13 @@ export async function setSessionNameTemplate(template: string): Promise<void> {
   await storage.set(SESSION_NAME_TEMPLATE_KEY, template);
 }
 
+/** 修改/重命名指定会话卡片的名称 */
+export async function updateSessionLabel(sessionId: string, newLabel: string): Promise<void> {
+  const sessions = await getSyncedSessions();
+  const updated = sessions.map((s) => (s.id === sessionId ? { ...s, label: newLabel } : s));
+  await storage.set(SYNCED_SESSIONS_KEY, updated);
+}
+
 /** 格式化模板生成 Session 名称 */
 export function formatSessionNameTemplate(
   template: string,
