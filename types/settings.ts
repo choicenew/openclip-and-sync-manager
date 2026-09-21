@@ -55,6 +55,9 @@ export const defaultSettings = {
   syncDeviceFilter: "all",
   displayMode: DisplayMode.Enum.Popup,
   language: "auto",
+  sessionAutoSaveIntervalMinutes: 30, // 默认每 30 分钟定时自动快照，0 为关闭
+  sessionAutoSaveOnStartup: true,
+  sessionAutoSaveOnShutdown: true,
 };
 
 export const BlacklistRuleSchema = z.object({
@@ -94,6 +97,9 @@ export const Settings = z
     syncDeviceFilter: z.string().default(defaultSettings.syncDeviceFilter),
     displayMode: DisplayMode.default(defaultSettings.displayMode),
     language: z.string().default(defaultSettings.language),
+    sessionAutoSaveIntervalMinutes: z.number().default(defaultSettings.sessionAutoSaveIntervalMinutes),
+    sessionAutoSaveOnStartup: z.boolean().default(defaultSettings.sessionAutoSaveOnStartup),
+    sessionAutoSaveOnShutdown: z.boolean().default(defaultSettings.sessionAutoSaveOnShutdown),
   })
   .default(defaultSettings);
 export type Settings = z.infer<typeof Settings>;

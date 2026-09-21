@@ -131,20 +131,40 @@ if (process.env.PLASMO_TARGET !== "firefox-mv2") {
 }
 
 chrome.runtime.onStartup.addListener(async () => {
+  const settings = await getSettings();
   await Promise.all([
     setupOffscreenDocument(),
     setupAction(),
     handleUpdateContextMenusRequest(),
-    autoSaveSessionSnapshot("启动自动备份").catch(() => {}),
+    settings.sessionAutoSaveOnStartup && autoSaveSessionSnapshot("启动自动备份").catch(() => {}),
   ]);
+  if (settings.sessionAutoSaveIntervalMinutes > 0 && chrome.alarms) {
+    chrome.alarms.create("auto_save_session_alarm", {
+      periodInMinutes: settings.sessionAutoSaveIntervalMinutes,
+    });
+  }
 });
+
+if (typeof chrome !== "undefined" && chrome.alarms) {
+  chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm.name === "auto_save_session_alarm") {
+      const settings = await getSettings();
+      if (settings.sessionAutoSaveIntervalMinutes > 0) {
+        await autoSaveSessionSnapshot(`定时备份 (${settings.sessionAutoSaveIntervalMinutes}m)`).catch(() => {});
+      }
+    }
+  });
+}
 
 chrome.tabs.onActivated.addListener(async () => {
   await Promise.all([setupOffscreenDocument(), setupAction(), handleUpdateContextMenusRequest()]);
 });
 
 chrome.runtime.onSuspend.addListener(async () => {
-  await autoSaveSessionSnapshot("关闭自动备份").catch(() => {});
+  const settings = await getSettings();
+  if (settings.sessionAutoSaveOnShutdown) {
+    await autoSaveSessionSnapshot("关闭自动备份").catch(() => {});
+  }
 
   // Firefox MV2 does not support chrome.offscreen.
   if (process.env.PLASMO_TARGET === "firefox-mv2") {

@@ -6,10 +6,12 @@ import {
   Collapse,
   Group,
   Image,
+  Modal,
   Paper,
   ScrollArea,
   Stack,
   Text,
+  TextInput,
   Tooltip,
   useMantineTheme,
 } from "@mantine/core";
@@ -22,13 +24,18 @@ import {
   IconDeviceDesktop,
   IconExternalLink,
   IconGlobe,
+  IconPencil,
   IconRefresh,
   IconTrash,
   IconWorldUpload,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
-import { getSyncedSessions, setSyncedSessions as saveSyncedSessions } from "~storage/syncedSessions";
+import {
+  getSyncedSessions,
+  setSyncedSessions as saveSyncedSessions,
+  updateSessionLabel,
+} from "~storage/syncedSessions";
 import { getSyncSettings } from "~storage/syncSettings";
 import { runFullSync } from "~utils/sync/engine";
 import {
@@ -43,6 +50,29 @@ interface Props {
   searchQuery?: string;
 }
 
+const getGroupMantineColor = (color?: string): string => {
+  switch (color) {
+    case "blue":
+      return "blue";
+    case "red":
+      return "red";
+    case "green":
+      return "green";
+    case "yellow":
+      return "yellow";
+    case "purple":
+      return "grape";
+    case "cyan":
+      return "cyan";
+    case "pink":
+      return "pink";
+    case "orange":
+      return "orange";
+    default:
+      return "gray";
+  }
+};
+
 export const SessionsPage = ({ searchQuery = "" }: Props) => {
   const theme = useMantineTheme();
   const [localTabs, setLocalTabs] = useState<SyncTab[]>([]);
@@ -50,6 +80,10 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
   const [currentDeviceId, setCurrentDeviceId] = useState("");
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  // 重命名 Modal 状态
+  const [editingSession, setEditingSession] = useState<SyncSession | null>(null);
+  const [newSessionLabel, setNewSessionLabel] = useState("");
 
   // 折叠状态 Map：sessionId -> boolean (true 为展开)
   const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({
@@ -141,6 +175,23 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
     });
   };
 
+  const handleOpenRenameModal = (session: SyncSession) => {
+    setEditingSession(session);
+    setNewSessionLabel(session.label || session.deviceName);
+  };
+
+  const handleSaveRename = async () => {
+    if (!editingSession) return;
+    await updateSessionLabel(editingSession.id, newSessionLabel);
+    setEditingSession(null);
+    await loadData();
+    notifications.show({
+      title: "重命名成功",
+      message: "已更新会话区段卡片的名称标识",
+      color: "teal",
+    });
+  };
+
   // 过滤处理：匹配搜索词的标签页或会话卡片
   const filterSessions = (sessions: SyncSession[]) => {
     if (!searchQuery.trim()) return sessions;
@@ -148,11 +199,14 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
     return sessions
       .map((s) => {
         const matchingTabs = s.tabs.filter(
-          (t) => t.title?.toLowerCase().includes(q) || t.url.toLowerCase().includes(q),
+          (t) =>
+            t.title?.toLowerCase().includes(q) ||
+            t.url.toLowerCase().includes(q) ||
+            t.groupTitle?.toLowerCase().includes(q),
         );
         const nameMatches =
           s.deviceName.toLowerCase().includes(q) || (s.label && s.label.toLowerCase().includes(q));
-        if (nameMatches) return s; // 若设备名匹配则返回全量会话
+        if (nameMatches) return s;
         if (matchingTabs.length > 0) return { ...s, tabs: matchingTabs };
         return null;
       })
@@ -163,6 +217,33 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
 
   return (
     <Stack spacing="xs" p="xs" sx={{ flex: 1, minHeight: 0 }}>
+      {/* 重命名 Modal 弹窗 */}
+      <Modal
+        opened={!!editingSession}
+        onClose={() => setEditingSession(null)}
+        title="重命名会话区段 (Rename Session Section)"
+        size="sm"
+        centered
+      >
+        <Stack spacing="md">
+          <TextInput
+            label="自定义会话卡片名称"
+            placeholder="例如: 2026工作标签组 / 研发备忘录"
+            value={newSessionLabel}
+            onChange={(e) => setNewSessionLabel(e.target.value)}
+            autoFocus
+          />
+          <Group position="right">
+            <Button variant="default" size="xs" onClick={() => setEditingSession(null)}>
+              取消
+            </Button>
+            <Button color="cyan" size="xs" onClick={handleSaveRename}>
+              保存新名称
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       {/* 顶部标题与手动刷新 */}
       <Group position="apart" align="center">
         <Group spacing="xs">
@@ -214,7 +295,7 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
                 本机正打开 {localTabs.length} 个标签页
               </Text>
               <Text size="11px" color="dimmed">
-                支持跨端自动/手动同步会话卡片 Section，按设备与时间折叠展开
+                支持跨端自动/手动同步 Tab Groups (颜色、名称、折叠状态)
               </Text>
             </Stack>
           </Group>
@@ -241,6 +322,11 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
             visibleSessions.map((session) => {
               const isExpanded = !!expandedSessions[session.id] || !!searchQuery.trim();
               const isLocal = session.id === "local_current";
+
+              // 统计该 Session 中的原生 Tab Groups 标签组
+              const groupNames = Array.from(
+                new Set(session.tabs.map((t) => t.groupTitle).filter(Boolean)),
+              );
 
               return (
                 <Paper
@@ -282,6 +368,19 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
                                 本机
                               </Badge>
                             )}
+                            <Tooltip label="手动重命名改名">
+                              <ActionIcon
+                                size="xs"
+                                variant="subtle"
+                                color="gray"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenRenameModal(session);
+                                }}
+                              >
+                                <IconPencil size={12} />
+                              </ActionIcon>
+                            </Tooltip>
                           </Group>
                           <Text size="10px" color="dimmed">
                             {session.label || "活跃会话"} ·{" "}
@@ -294,10 +393,15 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
 
                       {/* 卡片右侧快捷操作按钮 */}
                       <Group spacing={6} noWrap>
+                        {groupNames.length > 0 && (
+                          <Badge size="xs" variant="outline" color="indigo">
+                            📂 {groupNames.length} 标签组
+                          </Badge>
+                        )}
                         <Badge size="xs" variant="light" color="cyan">
                           {session.tabs.length} 标签
                         </Badge>
-                        <Tooltip label="在新窗口全量还原此 Section 会话">
+                        <Tooltip label="在新窗口全量还原此 Section 会话 (含 Tab Groups)">
                           <Button
                             size="xs"
                             compact
@@ -348,9 +452,20 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
                                   <IconGlobe size={14} color={theme.colors.gray[5]} />
                                 )}
                                 <Stack spacing={1} sx={{ overflow: "hidden" }}>
-                                  <Text size="xs" fw={500} truncate>
-                                    {tab.title || tab.url}
-                                  </Text>
+                                  <Group spacing={6} noWrap>
+                                    {tab.groupTitle && (
+                                      <Badge
+                                        size="xs"
+                                        variant="filled"
+                                        color={getGroupMantineColor(tab.groupColor)}
+                                      >
+                                        📁 {tab.groupTitle}
+                                      </Badge>
+                                    )}
+                                    <Text size="xs" fw={500} truncate>
+                                      {tab.title || tab.url}
+                                    </Text>
+                                  </Group>
                                   <Text size="10px" color="dimmed" truncate>
                                     {tab.url}
                                   </Text>

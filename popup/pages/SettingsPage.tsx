@@ -42,6 +42,10 @@ import {
   type MasterDeviceState,
 } from "~storage/masterDevice";
 import { getSettings, setSettings, type Settings } from "~storage/settings";
+import {
+  getSessionNameTemplate,
+  setSessionNameTemplate,
+} from "~storage/syncedSessions";
 import { getSyncSettings, setSyncSettings, type SyncSettings } from "~storage/syncSettings";
 import { runFullSync } from "~utils/sync/engine";
 import { authorizeGoogleOAuth, authorizeOneDriveOAuth } from "~utils/sync/provider";
@@ -106,12 +110,17 @@ export const SettingsPage = () => {
   const [newRuleName, setNewRuleName] = useState("");
   const [newRuleKeywords, setNewRuleKeywords] = useState("");
 
+  const [sessionNameTemplate, setSessionTemplateState] = useState(
+    "{YYYY}-{MM}-{DD} {HH}:{mm} - {deviceName} ({tabCount} 标签)",
+  );
+
   useEffect(() => {
-    Promise.all([getSyncSettings(), getSettings(), getMasterDeviceState()]).then(
-      ([sSet, st, mState]) => {
+    Promise.all([getSyncSettings(), getSettings(), getMasterDeviceState(), getSessionNameTemplate()]).then(
+      ([sSet, st, mState, tpl]) => {
         setSyncSet(sSet);
         setSet(st);
         setMasterState(mState);
+        setSessionTemplateState(tpl);
       },
     );
   }, []);
@@ -185,10 +194,11 @@ export const SettingsPage = () => {
       setSyncSettings(syncSettings),
       setSettings(settings),
       setMasterDeviceState(masterState),
+      setSessionNameTemplate(sessionNameTemplate),
     ]);
     notifications.show({
       title: "保存成功",
-      message: "同步设置与系统属性已全面更新",
+      message: "同步设置、会话模板与系统属性已全面更新",
       color: "teal",
       icon: <IconCheck size={16} />,
     });
@@ -623,6 +633,54 @@ export const SettingsPage = () => {
                     }
                   />
                 </Group>
+              </Stack>
+            </Paper>
+
+            {/* 会话 Section 时间轴自动备份规则与格式 */}
+            <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
+              <Stack spacing="xs">
+                <Text size="xs" fw={600} color="cyan.8">
+                  🌐 会话 Section 时间轴自动备份规则与命名格式
+                </Text>
+                <Group grow align="flex-end">
+                  <Select
+                    label="定时自动快照间隔"
+                    value={String(settings.sessionAutoSaveIntervalMinutes ?? 30)}
+                    onChange={(val) =>
+                      setSet((prev: any) => ({ ...prev, sessionAutoSaveIntervalMinutes: Number(val) || 0 }))
+                    }
+                    data={[
+                      { label: "关闭定时自动快照", value: "0" },
+                      { label: "每隔 15 分钟保存", value: "15" },
+                      { label: "每隔 30 分钟保存", value: "30" },
+                      { label: "每隔 60 分钟保存", value: "60" },
+                    ]}
+                  />
+                  <Switch
+                    label="启动浏览器时自动保存快照"
+                    size="xs"
+                    color="cyan"
+                    checked={settings.sessionAutoSaveOnStartup !== false}
+                    onChange={(e) =>
+                      setSet((prev: any) => ({ ...prev, sessionAutoSaveOnStartup: e.currentTarget.checked }))
+                    }
+                  />
+                  <Switch
+                    label="关闭浏览器时自动保存快照"
+                    size="xs"
+                    color="cyan"
+                    checked={settings.sessionAutoSaveOnShutdown !== false}
+                    onChange={(e) =>
+                      setSet((prev: any) => ({ ...prev, sessionAutoSaveOnShutdown: e.currentTarget.checked }))
+                    }
+                  />
+                </Group>
+                <TextInput
+                  label="自动备份会话的名称命名格式模板"
+                  description="支持占位符: {YYYY}, {MM}, {DD}, {HH}, {mm}, {deviceName}, {tabCount}"
+                  value={sessionNameTemplate}
+                  onChange={(e) => setSessionTemplateState(e.target.value)}
+                />
               </Stack>
             </Paper>
 

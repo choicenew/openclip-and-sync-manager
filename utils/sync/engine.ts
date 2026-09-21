@@ -60,6 +60,37 @@ export async function getLocalMultiModalPayload(): Promise<MultiModalSyncPayload
   };
 }
 
+/** 根据具体 Provider 节点的许可开关与全局模态开关，进行严格的双向双重门控过滤 */
+export function filterPayloadForProvider(
+  payload: MultiModalSyncPayload,
+  providerKey: "chrome" | "webdav" | "onedrive" | "googledrive" | "gist" | "s3" | "customRest",
+  syncSettings: any,
+  globalModalities: { clipboard: boolean; bookmarks: boolean; sessions: boolean; history: boolean; extensions: boolean },
+): MultiModalSyncPayload {
+  const pMods = syncSettings.providerModalities?.[providerKey] || {
+    clipboard: true,
+    bookmarks: true,
+    sessions: true,
+    history: true,
+    extensions: true,
+  };
+
+  const allowClipboard = globalModalities.clipboard && pMods.clipboard;
+  const allowBookmarks = globalModalities.bookmarks && pMods.bookmarks;
+  const allowSessions = globalModalities.sessions && pMods.sessions;
+  const allowHistory = globalModalities.history && pMods.history;
+  const allowExtensions = globalModalities.extensions && pMods.extensions;
+
+  return {
+    ...payload,
+    entries: allowClipboard ? payload.entries : [],
+    bookmarks: allowBookmarks ? payload.bookmarks : [],
+    sessions: allowSessions ? payload.sessions : [],
+    history: allowHistory ? payload.history : [],
+    extensions: allowExtensions ? payload.extensions : [],
+  };
+}
+
 /** 执行 v2.6.0 分模态独立文件同步任务 */
 export async function runFullSync(): Promise<{ success: boolean; message: string }> {
   const provider = await getActiveProvider();
@@ -99,13 +130,28 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
     };
 
     // 3. 构建推送 payload，如果当前为主设备则附加主设备控制锁数据
-    const pushPayload = await attachMasterLockToPushData({
+    const rawPushPayload = await attachMasterLockToPushData({
       ...mergedBase,
       bookmarks: localPayload.bookmarks,
       history: localPayload.history,
       sessions: localPayload.sessions,
       extensions: localPayload.extensions,
     });
+
+    // 严格经过双向过滤网格：每个 Provider 独立的模态许可规则
+    const providerKey = (provider.name.toLowerCase().includes("chrome")
+      ? "chrome"
+      : provider.name.toLowerCase().includes("webdav")
+      ? "webdav"
+      : provider.name.toLowerCase().includes("onedrive")
+      ? "onedrive"
+      : provider.name.toLowerCase().includes("google")
+      ? "googledrive"
+      : provider.name.toLowerCase().includes("s3")
+      ? "s3"
+      : "customRest") as any;
+
+    const pushPayload = filterPayloadForProvider(rawPushPayload, providerKey, syncSettings, modalities);
 
     await provider.push(pushPayload);
     await saveCloudDataToLocal(mergedBase);

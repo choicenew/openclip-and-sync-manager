@@ -1,6 +1,18 @@
-import { Storage } from "@plasmohq/storage";
+export interface ModalityPermissions {
+  clipboard: boolean;
+  bookmarks: boolean;
+  sessions: boolean;
+  history: boolean;
+  extensions: boolean;
+}
 
-export type SyncProviderType = "chrome" | "webdav" | "onedrive" | "googledrive" | "gist" | "s3" | "customRest" | "none";
+export const DEFAULT_MODALITY_PERMISSIONS: ModalityPermissions = {
+  clipboard: true,
+  bookmarks: true,
+  sessions: true,
+  history: true,
+  extensions: true,
+};
 
 export interface SyncSettings {
   deviceId: string;
@@ -12,6 +24,16 @@ export interface SyncSettings {
   enableGist: boolean;
   enableS3: boolean;
   enableCustomRest: boolean;
+  // 各节点双向许可网格控制表：指定具体每个云端节点允许同步哪些数据模态
+  providerModalities: {
+    chrome: ModalityPermissions;
+    webdav: ModalityPermissions;
+    onedrive: ModalityPermissions;
+    googledrive: ModalityPermissions;
+    gist: ModalityPermissions;
+    s3: ModalityPermissions;
+    customRest: ModalityPermissions;
+  };
   webdavUrl: string;
   webdavUsername: string;
   webdavPassword: string;
@@ -47,6 +69,15 @@ const DEFAULT_SYNC_SETTINGS: SyncSettings = {
   enableGist: false,
   enableS3: false,
   enableCustomRest: false,
+  providerModalities: {
+    chrome: { ...DEFAULT_MODALITY_PERMISSIONS },
+    webdav: { ...DEFAULT_MODALITY_PERMISSIONS },
+    onedrive: { ...DEFAULT_MODALITY_PERMISSIONS },
+    googledrive: { ...DEFAULT_MODALITY_PERMISSIONS },
+    gist: { ...DEFAULT_MODALITY_PERMISSIONS },
+    s3: { ...DEFAULT_MODALITY_PERMISSIONS },
+    customRest: { ...DEFAULT_MODALITY_PERMISSIONS },
+  },
   webdavUrl: "",
   webdavUsername: "",
   webdavPassword: "",
@@ -81,11 +112,21 @@ export const getSyncSettings = async (): Promise<SyncSettings> => {
     await storage.set(KEY, { ...val, deviceId });
   }
   const deviceName = val.deviceName || "设备 A";
+  const pMods = val.providerModalities || {};
   return {
     ...DEFAULT_SYNC_SETTINGS,
     ...val,
     deviceId,
     deviceName,
+    providerModalities: {
+      chrome: { ...DEFAULT_MODALITY_PERMISSIONS, ...pMods.chrome },
+      webdav: { ...DEFAULT_MODALITY_PERMISSIONS, ...pMods.webdav },
+      onedrive: { ...DEFAULT_MODALITY_PERMISSIONS, ...pMods.onedrive },
+      googledrive: { ...DEFAULT_MODALITY_PERMISSIONS, ...pMods.googledrive },
+      gist: { ...DEFAULT_MODALITY_PERMISSIONS, ...pMods.gist },
+      s3: { ...DEFAULT_MODALITY_PERMISSIONS, ...pMods.s3 },
+      customRest: { ...DEFAULT_MODALITY_PERMISSIONS, ...pMods.customRest },
+    },
     enableChromeSync: typeof val.enableChromeSync === "boolean" ? val.enableChromeSync : false,
     enableWebdav: typeof val.enableWebdav === "boolean" ? val.enableWebdav : false,
     enableOneDrive: typeof val.enableOneDrive === "boolean" ? val.enableOneDrive : false,
