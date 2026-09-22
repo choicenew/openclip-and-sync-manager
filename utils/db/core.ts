@@ -159,7 +159,7 @@ let _cache: CloudData | null = null;
 let _connected = false;
 let _cacheTimer: ReturnType<typeof setTimeout> | null = null;
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟无操作后自动置空，释放 V8 堆内存
+const CACHE_TTL_MS = 30 * 1000; // 30秒无操作后自动置空，及时释放 V8 堆内存
 
 const resetCacheTimer = () => {
   if (_cacheTimer) clearTimeout(_cacheTimer);
