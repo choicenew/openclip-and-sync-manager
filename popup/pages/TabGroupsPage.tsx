@@ -37,59 +37,58 @@ export const TabGroupsPage: React.FC = () => {
     try {
       const groupMap = new Map<string | number, ActiveTabGroup>();
 
-      // 1. 查询当前窗口及所有窗口的活跃标签页与 Tab Groups
-      let allTabs: chrome.tabs.Tab[] = [];
-      let activeGroups: chrome.tabGroups.TabGroup[] = [];
+      // 1. 从 chrome.storage.local 读取 SW 实时捕获并持久化的 Tab Groups 注册表 (100% 极速秒级响应)
+      try {
+        const storedData = await new Promise<any>((resolve) => {
+          chrome.storage.local.get("openclip_live_tab_groups", (res) => resolve(res.openclip_live_tab_groups));
+        });
+        if (Array.isArray(storedData)) {
+          for (const g of storedData) {
+            if (g && g.id !== undefined) {
+              groupMap.set(g.id, g);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[TabGroupsPage] Read openclip_live_tab_groups notice:", e);
+      }
 
+      // 2. 双重保活：直接查当前所有 Tabs 并对 groupId > 0 进行扫捕
+      let allTabs: chrome.tabs.Tab[] = [];
       try {
         allTabs = await chrome.tabs.query({});
-        if (chrome.tabGroups) {
-          activeGroups = await chrome.tabGroups.query({});
-        }
       } catch (e) {
         console.warn("[TabGroupsPage] Tabs query notice:", e);
       }
 
-      // 按 groupId 构建组基础结构
-      for (const g of activeGroups) {
-        if (g.id !== undefined && g.id !== -1) {
-          groupMap.set(g.id, {
-            id: g.id,
-            title: g.title || "未命名 Tab Group",
-            color: g.color || "grey",
-            collapsed: !!g.collapsed,
-            isClosed: false,
-            sourceLabel: "当前活跃",
-            tabs: [],
-          });
-        }
-      }
-
-      // 将各标签页挂载到对应的 Tab Group 中
       for (const t of allTabs) {
         if (t.groupId !== undefined && t.groupId !== -1) {
           let existing = groupMap.get(t.groupId);
-          if (!existing && chrome.tabGroups) {
-            try {
-              const fetchedGroup = await chrome.tabGroups.get(t.groupId);
-              if (fetchedGroup) {
-                existing = {
-                  id: fetchedGroup.id,
-                  title: fetchedGroup.title || "未命名 Tab Group",
-                  color: fetchedGroup.color || "grey",
-                  collapsed: !!fetchedGroup.collapsed,
-                  isClosed: false,
-                  sourceLabel: "当前活跃",
-                  tabs: [],
-                };
-                groupMap.set(fetchedGroup.id, existing);
-              }
-            } catch (e) {
-              // Ignore single fetch fail
+          if (!existing) {
+            existing = {
+              id: t.groupId,
+              title: `Tab Group #${t.groupId}`,
+              color: "blue",
+              collapsed: false,
+              isClosed: false,
+              sourceLabel: "当前活跃",
+              tabs: [],
+            };
+            groupMap.set(t.groupId, existing);
+
+            if (chrome.tabGroups && chrome.tabGroups.get) {
+              chrome.tabGroups.get(t.groupId).then((g) => {
+                if (g) {
+                  if (g.title) existing!.title = g.title;
+                  if (g.color) existing!.color = g.color;
+                  existing!.collapsed = !!g.collapsed;
+                  setGroups(Array.from(groupMap.values()));
+                }
+              }).catch(() => {});
             }
           }
 
-          if (existing) {
+          if (!existing.tabs.some((item) => item.id === t.id || (item.url === t.url && item.title === t.title))) {
             existing.tabs.push({
               id: t.id,
               title: t.title || t.url || "无标题页",
@@ -100,7 +99,7 @@ export const TabGroupsPage: React.FC = () => {
         }
       }
 
-      // 2. 调用 chrome.sessions.getRecentlyClosed 读取最近关闭/归档的 Tab Groups
+      // 3. 调用 chrome.sessions.getRecentlyClosed 读取最近关闭/归档的 Tab Groups
       if (chrome.sessions && chrome.sessions.getRecentlyClosed) {
         try {
           const recentlyClosed = await chrome.sessions.getRecentlyClosed({});
@@ -116,7 +115,7 @@ export const TabGroupsPage: React.FC = () => {
                 }));
                 groupMap.set(closedGroupId, {
                   id: closedGroupId,
-                  title: `${closedG.title || "已关闭标签组"}`,
+                  title: closedG.title || "已关闭 Tab Group",
                   color: closedG.color || "grey",
                   collapsed: true,
                   isClosed: true,
@@ -131,7 +130,7 @@ export const TabGroupsPage: React.FC = () => {
         }
       }
 
-      // 3. 聚合提取 Synced Sessions / 历史 Section 快照中包含的 Tab Groups
+      // 4. 聚合提取 Synced Sessions 快照中保存的 Tab Groups
       try {
         const syncedSessions = await getSyncedSessions();
         for (const session of syncedSessions) {
@@ -188,19 +187,31 @@ export const TabGroupsPage: React.FC = () => {
     loadAllTabGroups();
     loadSettings();
 
-    // 实时监听 Chrome Tab Groups 变动事件
-    if (typeof chrome !== "undefined" && chrome.tabGroups) {
-      const handleGroupChange = () => {
-        loadAllTabGroups();
+    // 实时监听 chrome.storage.local 与原生 Tab Groups 事件
+    if (typeof chrome !== "undefined") {
+      const handleStorageChange = (changes: any, areaName: string) => {
+        if (areaName === "local" && changes.openclip_live_tab_groups) {
+          loadAllTabGroups();
+        }
       };
-      chrome.tabGroups.onCreated?.addListener(handleGroupChange);
-      chrome.tabGroups.onUpdated?.addListener(handleGroupChange);
-      chrome.tabGroups.onRemoved?.addListener(handleGroupChange);
+      chrome.storage.onChanged.addListener(handleStorageChange);
+
+      if (chrome.tabGroups) {
+        const handleGroupChange = () => loadAllTabGroups();
+        chrome.tabGroups.onCreated?.addListener(handleGroupChange);
+        chrome.tabGroups.onUpdated?.addListener(handleGroupChange);
+        chrome.tabGroups.onRemoved?.addListener(handleGroupChange);
+
+        return () => {
+          chrome.storage.onChanged.removeListener(handleStorageChange);
+          chrome.tabGroups.onCreated?.removeListener(handleGroupChange);
+          chrome.tabGroups.onUpdated?.removeListener(handleGroupChange);
+          chrome.tabGroups.onRemoved?.removeListener(handleGroupChange);
+        };
+      }
 
       return () => {
-        chrome.tabGroups.onCreated?.removeListener(handleGroupChange);
-        chrome.tabGroups.onUpdated?.removeListener(handleGroupChange);
-        chrome.tabGroups.onRemoved?.removeListener(handleGroupChange);
+        chrome.storage.onChanged.removeListener(handleStorageChange);
       };
     }
   }, []);

@@ -21,14 +21,99 @@ import { handleUpdateContextMenusRequest } from "./messages/updateContextMenus";
 import { handleUpdateDisplayModeRequest } from "./messages/updateDisplayMode";
 import { handleUpdateTotalItemsBadgeRequest } from "./messages/updateTotalItemsBadge";
 
+// Service Worker 后台对 Chrome 原生 Tab Groups 进行全局实时侦测与持久化注册表更新
+const syncLiveTabGroupsToStorage = async () => {
+  if (typeof chrome === "undefined" || !chrome.tabs) return;
+  try {
+    const allTabs = await chrome.tabs.query({});
+    let activeGroups: chrome.tabGroups.TabGroup[] = [];
+    if (chrome.tabGroups) {
+      try {
+        activeGroups = await chrome.tabGroups.query({});
+      } catch {}
+    }
+
+    const groupMap = new Map<number, { id: number; title: string; color: string; collapsed: boolean; sourceLabel: string; tabs: any[] }>();
+
+    for (const g of activeGroups) {
+      if (g.id !== undefined && g.id !== -1) {
+        groupMap.set(g.id, {
+          id: g.id,
+          title: g.title || `Tab Group #${g.id}`,
+          color: g.color || "blue",
+          collapsed: !!g.collapsed,
+          sourceLabel: "当前活跃",
+          tabs: [],
+        });
+      }
+    }
+
+    for (const t of allTabs) {
+      if (t.groupId !== undefined && t.groupId !== -1) {
+        let existing = groupMap.get(t.groupId);
+        if (!existing) {
+          existing = {
+            id: t.groupId,
+            title: `Tab Group #${t.groupId}`,
+            color: "blue",
+            collapsed: false,
+            sourceLabel: "当前活跃",
+            tabs: [],
+          };
+          groupMap.set(t.groupId, existing);
+
+          if (chrome.tabGroups && chrome.tabGroups.get) {
+            try {
+              const fetched = await chrome.tabGroups.get(t.groupId);
+              if (fetched) {
+                if (fetched.title) existing.title = fetched.title;
+                if (fetched.color) existing.color = fetched.color;
+                existing.collapsed = !!fetched.collapsed;
+              }
+            } catch {}
+          }
+        }
+
+        if (!existing.tabs.some((item) => item.id === t.id)) {
+          existing.tabs.push({
+            id: t.id,
+            title: t.title || t.url || "无标题页",
+            url: t.url || "",
+            favIconUrl: t.favIconUrl,
+          });
+        }
+      }
+    }
+
+    await chrome.storage.local.set({
+      openclip_live_tab_groups: Array.from(groupMap.values()),
+    });
+  } catch (e) {
+    console.warn("[Background] Sync live tab groups error:", e);
+  }
+};
+
+// 挂载 Chrome 原生 Tab Groups 变动与 Tab 变动事件句柄
+if (typeof chrome !== "undefined") {
+  if (chrome.tabGroups) {
+    chrome.tabGroups.onCreated?.addListener(syncLiveTabGroupsToStorage);
+    chrome.tabGroups.onUpdated?.addListener(syncLiveTabGroupsToStorage);
+    chrome.tabGroups.onRemoved?.addListener(syncLiveTabGroupsToStorage);
+    chrome.tabGroups.onMoved?.addListener(syncLiveTabGroupsToStorage);
+  }
+  if (chrome.tabs) {
+    chrome.tabs.onUpdated?.addListener(syncLiveTabGroupsToStorage);
+    chrome.tabs.onRemoved?.addListener(syncLiveTabGroupsToStorage);
+    chrome.tabs.onAttached?.addListener(syncLiveTabGroupsToStorage);
+    chrome.tabs.onDetached?.addListener(syncLiveTabGroupsToStorage);
+  }
+}
+
 // Firefox MV2 creates a persistent background page that we can use to watch the clipboard.
 if (process.env.PLASMO_TARGET === "firefox-mv2") {
   watchClipboard(window, document, getClipboardMonitorIsEnabled, (content) =>
     handleCreateEntryRequest({
       content,
-      // Race condition with popup. Adding this delay in the recorded timestamp allows the
-      // clipboard monitor to fail to create an entry when racing with the popup. It will succeed
-      // on the next interval as long as the popup doesn't write to clipboardSnapshot again.
       timestamp: Date.now() - 2000,
     }),
   );
@@ -38,7 +123,6 @@ if (process.env.PLASMO_TARGET === "firefox-mv2") {
       handleUpdateContextMenusRequest(),
       (async () => {
         const entries = await getEntries();
-
         await handleUpdateTotalItemsBadgeRequest(entries.length);
       })(),
     ]);
@@ -49,33 +133,27 @@ if (process.env.PLASMO_TARGET === "firefox-mv2") {
       handleUpdateContextMenusRequest(),
       (async () => {
         const entries = await getEntries();
-
         await handleUpdateTotalItemsBadgeRequest(entries.length);
       })(),
     ]);
 
-    // Retry just in case updating the service worker's reactor status takes some time.
     await new Promise((r) => setTimeout(r, 800));
 
     await Promise.all([
       handleUpdateContextMenusRequest(),
       (async () => {
         const entries = await getEntries();
-
         await handleUpdateTotalItemsBadgeRequest(entries.length);
       })(),
     ]);
   };
 
   window.addEventListener("online", () => updateContextMenusAndTotalItemsBadgeRequest());
-
   window.addEventListener("offline", () => updateContextMenusAndTotalItemsBadgeRequest());
 }
 
-// A global promise to avoid concurrency issues.
 let creating: Promise<void> | null = null;
 const setupOffscreenDocument = async () => {
-  // Firefox MV2 does not support chrome.offscreen.
   if (process.env.PLASMO_TARGET === "firefox-mv2") {
     return;
   }
@@ -107,24 +185,21 @@ const setupAction = async () => {
     handleUpdateDisplayModeRequest(),
     handleUpdateTotalItemsBadgeRequest(entries.length),
     setActionIconAndBadgeBackgroundColor(clipboardMonitorIsEnabled),
+    syncLiveTabGroupsToStorage(),
   ]);
 };
 
 if (process.env.PLASMO_TARGET !== "firefox-mv2") {
-  // Handle extension icon click - only fires when no popup is set (i.e., in SidePanel mode)
   chrome.action.onClicked.addListener(async (tab) => {
     const settings = await getSettings();
 
     if (settings.displayMode === DisplayMode.Enum.SidePanel && chrome.sidePanel) {
-      // Open as sidebar panel for Chrome
       if (tab?.id) {
         await chrome.sidePanel.open({ tabId: tab.id });
       } else {
         await chrome.sidePanel.open({ windowId: chrome.windows.WINDOW_ID_CURRENT });
       }
     } else {
-      // Defensive: This shouldn't be reached since onClicked only fires when no popup is set,
-      // but attempt to open popup if we somehow get here
       chrome.action.openPopup();
     }
   });
@@ -136,6 +211,7 @@ chrome.runtime.onStartup.addListener(async () => {
     setupOffscreenDocument(),
     setupAction(),
     handleUpdateContextMenusRequest(),
+    syncLiveTabGroupsToStorage(),
     settings.sessionAutoSaveOnStartup && autoSaveSessionSnapshot("启动自动备份").catch(() => {}),
   ]);
   if (settings.sessionAutoSaveIntervalMinutes > 0 && chrome.alarms) {
@@ -157,7 +233,12 @@ if (typeof chrome !== "undefined" && chrome.alarms) {
 }
 
 chrome.tabs.onActivated.addListener(async () => {
-  await Promise.all([setupOffscreenDocument(), setupAction(), handleUpdateContextMenusRequest()]);
+  await Promise.all([
+    setupOffscreenDocument(),
+    setupAction(),
+    handleUpdateContextMenusRequest(),
+    syncLiveTabGroupsToStorage(),
+  ]);
 });
 
 chrome.runtime.onSuspend.addListener(async () => {
@@ -166,7 +247,6 @@ chrome.runtime.onSuspend.addListener(async () => {
     await autoSaveSessionSnapshot("关闭自动备份").catch(() => {});
   }
 
-  // Firefox MV2 does not support chrome.offscreen.
   if (process.env.PLASMO_TARGET === "firefox-mv2") {
     return;
   }
@@ -181,6 +261,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     setupOffscreenDocument(),
     setupAction(),
     handleUpdateContextMenusRequest(),
+    syncLiveTabGroupsToStorage(),
   ]);
 });
 
