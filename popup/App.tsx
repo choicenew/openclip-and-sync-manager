@@ -76,7 +76,7 @@ export const App: React.FC = () => {
   const tabsList = [
     { value: Tab.Enum.Clipboard, label: "剪贴板", icon: "📋" },
     { value: Tab.Enum.Cloud, label: "云同步", icon: "☁️" },
-    { value: Tab.Enum.Sessions, label: "会话标签", icon: "🌐" },
+    { value: Tab.Enum.Sessions, label: "会话", icon: "🌐" },
     { value: Tab.Enum.TabGroups, label: "标签组", icon: "📂" },
     { value: Tab.Enum.Bookmarks, label: "书签", icon: "🔖" },
     { value: Tab.Enum.History, label: "历史", icon: "📜" },
@@ -114,8 +114,15 @@ export const App: React.FC = () => {
           ) : null}
         </div>
 
-        {/* 顶部快捷操作入口 */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        {/* 顶部快捷操作入口 (恢复 ⚙️ 设置 专属快捷按钮) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <button
+            title="快捷打开系统与同步设置"
+            className="native-btn native-btn-sm"
+            onClick={() => setTab(Tab.Enum.Settings)}>
+            ⚙️ 设置
+          </button>
+
           <button
             title="赞助支持项目 (Ko-fi)"
             className="native-btn native-btn-sm native-btn-subtle"
@@ -173,20 +180,20 @@ export const App: React.FC = () => {
       </div>
 
       {/* 全局搜索框与原生导航 Tabs */}
-      <div className="flex-between" style={{ gap: "10px" }}>
-        <div style={{ position: "relative", width: "200px" }}>
+      <div className="flex-between" style={{ gap: "8px" }}>
+        <div style={{ position: "relative", width: "180px", flexShrink: 0 }}>
           <input
             ref={inputRef}
             id={SEARCH_INPUT_ID}
             type="text"
             className="native-input"
-            style={{ width: "100%", paddingLeft: "26px" }}
-            placeholder="搜索剪贴板、书签、历史..."
+            style={{ width: "100%", paddingLeft: "24px" }}
+            placeholder="搜索剪贴板、书签..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoFocus
           />
-          <span style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", fontSize: "12px", color: "var(--text-dimmed)" }}>
+          <span style={{ position: "absolute", left: "6px", top: "50%", transform: "translateY(-50%)", fontSize: "11px", color: "var(--text-dimmed)" }}>
             🔍
           </span>
           {search.length === 0 && extensionActivationShortcut && (
@@ -196,7 +203,7 @@ export const App: React.FC = () => {
           )}
         </div>
 
-        {/* 原生导航 SegmentedControl */}
+        {/* 原生导航 SegmentedControl (自适应紧凑放宽，确保 9 个选项 100% 可见) */}
         <nav
           style={{
             display: "flex",
@@ -205,7 +212,8 @@ export const App: React.FC = () => {
             borderRadius: "var(--radius-sm)",
             padding: "2px",
             gap: "2px",
-            overflowX: "auto",
+            flex: 1,
+            justifyContent: "space-between",
           }}>
           {tabsList.map((item) => {
             const isActive = tab === item.value;
@@ -217,6 +225,8 @@ export const App: React.FC = () => {
                   backgroundColor: isActive ? "var(--primary-color)" : "transparent",
                   color: isActive ? "#ffffff" : "var(--text-main)",
                   border: "none",
+                  padding: "3px 5px",
+                  fontSize: "11px",
                   fontWeight: isActive ? 600 : 400,
                   whiteSpace: "nowrap",
                 }}

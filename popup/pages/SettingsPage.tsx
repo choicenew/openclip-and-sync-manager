@@ -55,6 +55,12 @@ export const SettingsPage: React.FC = () => {
     localItemCharacterLimit: 50000,
     syncDeviceFilter: "all",
     clipboardMonitorIsEnabled: true,
+    sessionAutoSaveIntervalMinutes: 30,
+    sessionAutoSaveOnStartup: true,
+    sessionAutoSaveOnShutdown: true,
+    sessionIgnoreUrls: "https://example.com/*\nhttps://example.net/*",
+    sessionMinTabCount: 1,
+    sessionSaveWindowMode: "current",
   } as any);
 
   const [masterState, setMasterState] = useState<MasterDeviceState>({
@@ -139,7 +145,7 @@ export const SettingsPage: React.FC = () => {
       setMasterDeviceState(masterState),
       setSessionNameTemplate(sessionNameTemplate),
     ]);
-    showToast("全部修改已保存！");
+    showToast("全部设置与会话规则已保存！");
   };
 
   const handleTriggerSync = async () => {
@@ -163,7 +169,7 @@ export const SettingsPage: React.FC = () => {
       <div className="native-card flex-between">
         <div style={{ fontWeight: 700, fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
           <span>⚙️</span>
-          <span>OpenClip Sync 系统与同步设置</span>
+          <span>OpenClip Sync 系统与全量同步规则设置</span>
           <span className="native-badge native-badge-blue">v{VERSION}</span>
         </div>
         <button className="native-btn" onClick={handleSave}>
@@ -171,7 +177,105 @@ export const SettingsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* 1. 云端同步 Backend 平铺设置 */}
+      {/* 1. 会话 (Section) 与 Tab Groups 精细化保存规则 (TSM 完整对齐) */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px", color: "var(--primary-color)" }}>
+          🌐 会话 Section 与 Tab Groups 规则设置 (对标 TSM 规范)：
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "11px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.sessionAutoSaveOnStartup !== false}
+              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionAutoSaveOnStartup: e.target.checked }))}
+            />
+            <span>启动浏览器时自动保存 Section 快照</span>
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.sessionAutoSaveOnShutdown !== false}
+              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionAutoSaveOnShutdown: e.target.checked }))}
+            />
+            <span>关闭浏览器时自动保存 Section 快照</span>
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.deduplicateEntries !== false}
+              onChange={(e) => setSet((prev: any) => ({ ...prev, deduplicateEntries: e.target.checked }))}
+            />
+            <span>自动去重合并完全相同的 Section 快照</span>
+          </label>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>定时自动备份间隔:</span>
+            <select
+              className="native-select"
+              value={settings.sessionAutoSaveIntervalMinutes ?? 30}
+              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionAutoSaveIntervalMinutes: Number(e.target.value) }))}>
+              <option value={0}>关闭定时备份</option>
+              <option value={15}>每 15 分钟</option>
+              <option value={30}>每 30 分钟</option>
+              <option value={60}>每 60 分钟</option>
+            </select>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>自动备份最少 Tab 门槛:</span>
+            <input
+              type="number"
+              className="native-input"
+              style={{ width: "60px" }}
+              value={settings.sessionMinTabCount ?? 1}
+              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionMinTabCount: Number(e.target.value) }))}
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>保存窗口模式:</span>
+            <select
+              className="native-select"
+              value={settings.sessionSaveWindowMode || "current"}
+              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionSaveWindowMode: e.target.value }))}>
+              <option value="current">仅保存当前窗口</option>
+              <option value="all">保存所有打开的窗口</option>
+            </select>
+          </div>
+        </div>
+
+        {/* URL 忽略黑名单 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-dimmed)" }}>
+            🚫 会话保存排除的 URL 黑名单 (支持 * 通配符，每行一条)：
+          </div>
+          <textarea
+            className="native-input"
+            rows={3}
+            style={{ fontSize: "11px", fontFamily: "monospace" }}
+            value={settings.sessionIgnoreUrls || ""}
+            onChange={(e) => setSet((prev: any) => ({ ...prev, sessionIgnoreUrls: e.target.value }))}
+          />
+        </div>
+
+        {/* 名称格式模板 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-dimmed)" }}>
+            🏷️ 自动备份会话的名称模板 (占位符: &#123;YYYY&#125;, &#123;MM&#125;, &#123;DD&#125;, &#123;HH&#125;, &#123;mm&#125;, &#123;deviceName&#125;, &#123;tabCount&#125;)：
+          </div>
+          <input
+            type="text"
+            className="native-input"
+            value={sessionNameTemplate}
+            onChange={(e) => setSessionTemplateState(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* 2. 云端同步 Backend 平铺设置 */}
       <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div style={{ fontWeight: 600, fontSize: "12px" }}>☁️ 云端同步 Backend 选项：</div>
 
@@ -309,20 +413,18 @@ export const SettingsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* 2. 剪贴板合并与数据保留设置 */}
+      {/* 3. 剪贴板与通用保留设置 */}
       <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        <div style={{ fontWeight: 600, fontSize: "12px" }}>📋 剪贴板合并与数据保留策略：</div>
+        <div style={{ fontWeight: 600, fontSize: "12px" }}>📋 本机剪贴板与历史保留策略：</div>
 
-        <div className="flex-between">
-          <span style={{ fontSize: "11px" }}>自动合并重复剪贴板记录 (Deduplicate)</span>
-          <label className="native-switch">
-            <input
-              type="checkbox"
-              checked={settings.deduplicateEntries !== false}
-              onChange={(e) => setSet((prev: any) => ({ ...prev, deduplicateEntries: e.target.checked }))}
-            />
-            <span className="native-slider"></span>
-          </label>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <span style={{ fontSize: "11px", width: "130px" }}>本机设备名称:</span>
+          <input
+            type="text"
+            className="native-input flex-1"
+            value={syncSettings.deviceName || "此电脑"}
+            onChange={(e) => setSyncSet((prev) => ({ ...prev, deviceName: e.target.value }))}
+          />
         </div>
 
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -346,7 +448,7 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. 关键词自动拦截与敏感词过滤 */}
+      {/* 4. 关键词自动拦截与敏感词过滤 */}
       <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div className="flex-between">
           <span style={{ fontWeight: 600, fontSize: "12px" }}>🛡️ 特定关键词自动拦截与删除 (Keyword Filter)</span>
