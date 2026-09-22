@@ -4,6 +4,7 @@ export const Tab = z.enum([
   "Clipboard",
   "Cloud",
   "Sessions",
+  "TabGroups",
   "Bookmarks",
   "History",
   "Extensions",

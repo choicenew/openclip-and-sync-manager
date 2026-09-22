@@ -1,42 +1,12 @@
+import React, { useEffect, useState } from "react";
 import {
-  ActionIcon,
-  Badge,
-  Button,
-  Card,
-  Collapse,
-  Group,
-  Image,
-  Modal,
-  Paper,
-  ScrollArea,
-  Stack,
-  Text,
-  TextInput,
-  Tooltip,
-  useMantineTheme,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
-  IconChevronDown,
-  IconChevronRight,
-  IconCloudDownload,
-  IconCloudUpload,
-  IconDeviceDesktop,
-  IconExternalLink,
-  IconGlobe,
-  IconPencil,
-  IconRefresh,
-  IconTrash,
-  IconWorldUpload,
-} from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-
-import {
+  autoSaveSessionSnapshot,
   getSyncedSessions,
   setSyncedSessions as saveSyncedSessions,
   updateSessionLabel,
 } from "~storage/syncedSessions";
-import { getSyncSettings } from "~storage/syncSettings";
+import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
+import { getSettings, setSettings } from "~storage/settings";
 import { runFullSync } from "~utils/sync/engine";
 import {
   exportCurrentTabs,
@@ -44,68 +14,47 @@ import {
   type SyncSession,
   type SyncTab,
 } from "~utils/sync/handlers/sessions";
-import { lightOrDark } from "~utils/sx";
 
 interface Props {
   searchQuery?: string;
 }
 
-const getGroupMantineColor = (color?: string): string => {
-  switch (color) {
-    case "blue":
-      return "blue";
-    case "red":
-      return "red";
-    case "green":
-      return "green";
-    case "yellow":
-      return "yellow";
-    case "purple":
-      return "grape";
-    case "cyan":
-      return "cyan";
-    case "pink":
-      return "pink";
-    case "orange":
-      return "orange";
-    default:
-      return "gray";
-  }
-};
-
-export const SessionsPage = ({ searchQuery = "" }: Props) => {
-  const theme = useMantineTheme();
-  const [localTabs, setLocalTabs] = useState<SyncTab[]>([]);
+export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
   const [syncedSessions, setSyncedSessionsState] = useState<SyncSession[]>([]);
-  const [currentDeviceId, setCurrentDeviceId] = useState("");
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("local_current");
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  // 重命名 Modal 状态
-  const [editingSession, setEditingSession] = useState<SyncSession | null>(null);
-  const [newSessionLabel, setNewSessionLabel] = useState("");
+  // 新建/手动重命名状态
+  const [manualTitle, setManualTitle] = useState("");
+  const [editingTitle, setEditTitle] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
 
-  // 折叠状态 Map：sessionId -> boolean (true 为展开)
-  const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({
-    local_current: true, // 默认展开本机会话
+  // 自动保存规则配置状态
+  const [autoSaveIntervalMinutes, setAutoSaveIntervalMinutes] = useState(30);
+  const [autoSaveOnStartup, setAutoSaveOnStartup] = useState(true);
+  const [autoSaveOnShutdown, setAutoSaveOnShutdown] = useState(true);
+  const [lazyLoading, setLazyLoading] = useState(true);
+
+  // 数据模态通道许可：Tab Sessions 允许走哪些云节点
+  const [allowedProviders, setAllowedProviders] = useState({
+    chrome: true,
+    webdav: true,
+    onedrive: true,
+    googledrive: true,
+    gist: true,
+    s3: true,
+    customRest: true,
   });
-
-  const toggleSessionExpand = (sessionId: string) => {
-    setExpandedSessions((prev) => ({
-      ...prev,
-      [sessionId]: !prev[sessionId],
-    }));
-  };
 
   const loadData = async () => {
     setLoading(true);
-    const [tabs, syncSet, remoteSessions] = await Promise.all([
+    const [tabs, syncSet, remoteSessions, appSettings] = await Promise.all([
       exportCurrentTabs(),
       getSyncSettings(),
       getSyncedSessions(),
+      getSettings(),
     ]);
-    setLocalTabs(tabs);
-    setCurrentDeviceId(syncSet.deviceId || "");
 
     const localSession: SyncSession = {
       id: "local_current",
@@ -124,7 +73,25 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
       }
     }
 
-    setSyncedSessionsState(Array.from(sessionMap.values()));
+    const sessionsList = Array.from(sessionMap.values());
+    setSyncedSessionsState(sessionsList);
+
+    // 载入自动保存设置
+    setAutoSaveIntervalMinutes(appSettings.sessionAutoSaveIntervalMinutes ?? 30);
+    setAutoSaveOnStartup(appSettings.sessionAutoSaveOnStartup ?? true);
+    setAutoSaveOnShutdown(appSettings.sessionAutoSaveOnShutdown ?? true);
+
+    const currentMods = syncSet.providerModalities || {};
+    setAllowedProviders({
+      chrome: currentMods.chrome?.sessions ?? true,
+      webdav: currentMods.webdav?.sessions ?? true,
+      onedrive: currentMods.onedrive?.sessions ?? true,
+      googledrive: currentMods.googledrive?.sessions ?? true,
+      gist: currentMods.gist?.sessions ?? true,
+      s3: currentMods.s3?.sessions ?? true,
+      customRest: currentMods.customRest?.sessions ?? true,
+    });
+
     setLoading(false);
   };
 
@@ -132,35 +99,18 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
     loadData();
   }, []);
 
-  const handlePullSessions = async () => {
+  const handleRunSync = async () => {
     setSyncing(true);
-    const res = await runFullSync();
+    await runFullSync();
     await loadData();
     setSyncing(false);
-    notifications.show({
-      title: res.success ? "会话拉取成功" : "同步提示",
-      message: res.success ? "已成功拉取云端多设备会话 Section 卡片！" : res.message,
-      color: res.success ? "teal" : "red",
-    });
   };
 
-  const handlePushSessions = async () => {
-    setSyncing(true);
-    const res = await runFullSync();
-    setSyncing(false);
-    notifications.show({
-      title: res.success ? "会话推送成功" : "推送提示",
-      message: res.success ? "已成功推送本机会话至云端 Section！" : res.message,
-      color: res.success ? "teal" : "red",
-    });
-  };
-
-  const handleOpenTab = (url: string) => {
-    chrome.tabs.create({ url });
-  };
-
-  const handleOpenAllTabs = (tabs: SyncTab[], inNewWindow = true) => {
-    openSessionTabs(tabs, inNewWindow);
+  const handleManualSaveSession = async () => {
+    const title = manualTitle.trim() || "手动保存会话快照";
+    await autoSaveSessionSnapshot(title);
+    setManualTitle("");
+    await loadData();
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -168,338 +118,344 @@ export const SessionsPage = ({ searchQuery = "" }: Props) => {
     const remaining = syncedSessions.filter((s) => s.id !== sessionId);
     setSyncedSessionsState(remaining);
     await saveSyncedSessions(remaining.filter((s) => s.id !== "local_current"));
-    notifications.show({
-      title: "会话已移除",
-      message: "该会话区段 Section 已从本地缓存删除",
-      color: "gray",
-    });
+    if (selectedSessionId === sessionId) {
+      setSelectedSessionId("local_current");
+    }
   };
 
-  const handleOpenRenameModal = (session: SyncSession) => {
-    setEditingSession(session);
-    setNewSessionLabel(session.label || session.deviceName);
-  };
-
-  const handleSaveRename = async () => {
-    if (!editingSession) return;
-    await updateSessionLabel(editingSession.id, newSessionLabel);
-    setEditingSession(null);
+  const handleSaveTitleEdit = async (sessionId: string) => {
+    if (!editingTitle.trim()) return;
+    await updateSessionLabel(sessionId, editingTitle.trim());
+    setIsEditingTitle(false);
     await loadData();
-    notifications.show({
-      title: "重命名成功",
-      message: "已更新会话区段卡片的名称标识",
-      color: "teal",
-    });
   };
 
-  // 过滤处理：匹配搜索词的标签页或会话卡片
+  const handleToggleAutoSaveRule = async (key: "interval" | "startup" | "shutdown", value: any) => {
+    const current = await getSettings();
+    const updated = { ...current };
+    if (key === "interval") {
+      updated.sessionAutoSaveIntervalMinutes = Number(value);
+      setAutoSaveIntervalMinutes(Number(value));
+    } else if (key === "startup") {
+      updated.sessionAutoSaveOnStartup = Boolean(value);
+      setAutoSaveOnStartup(Boolean(value));
+    } else if (key === "shutdown") {
+      updated.sessionAutoSaveOnShutdown = Boolean(value);
+      setAutoSaveOnShutdown(Boolean(value));
+    }
+    await setSettings(updated);
+  };
+
+  const handleToggleProvider = async (providerKey: string, allowed: boolean) => {
+    const s = await getSyncSettings();
+    const updatedMods = { ...s.providerModalities };
+    if (updatedMods[providerKey as keyof typeof updatedMods]) {
+      updatedMods[providerKey as keyof typeof updatedMods] = {
+        ...updatedMods[providerKey as keyof typeof updatedMods],
+        sessions: allowed,
+      };
+    }
+    await setSyncSettings({ providerModalities: updatedMods });
+    setAllowedProviders((prev) => ({ ...prev, [providerKey]: allowed }));
+  };
+
+  // 还原选中 Section
+  const handleRestoreSession = async (tabs: SyncTab[], inNewWindow = true) => {
+    await openSessionTabs(tabs, inNewWindow);
+  };
+
+  const selectedSession = syncedSessions.find((s) => s.id === selectedSessionId) || syncedSessions[0];
+
+  // 整理选中 Section 中的 Tab Groups 编组结构
+  const groupTabsByGroup = (tabs: SyncTab[]) => {
+    const groupsMap = new Map<string, { title: string; color: string; collapsed: boolean; tabs: SyncTab[] }>();
+    const ungroupedTabs: SyncTab[] = [];
+
+    for (const t of tabs) {
+      if (t.groupTitle) {
+        const groupKey = `${t.groupTitle}_${t.groupColor || "blue"}`;
+        const existing = groupsMap.get(groupKey) || {
+          title: t.groupTitle,
+          color: t.groupColor || "blue",
+          collapsed: !!t.groupCollapsed,
+          tabs: [],
+        };
+        existing.tabs.push(t);
+        groupsMap.set(groupKey, existing);
+      } else {
+        ungroupedTabs.push(t);
+      }
+    }
+    return { groupsMap: Array.from(groupsMap.values()), ungroupedTabs };
+  };
+
   const filterSessions = (sessions: SyncSession[]) => {
     if (!searchQuery.trim()) return sessions;
     const q = searchQuery.toLowerCase();
-    return sessions
-      .map((s) => {
-        const matchingTabs = s.tabs.filter(
-          (t) =>
-            t.title?.toLowerCase().includes(q) ||
-            t.url.toLowerCase().includes(q) ||
-            t.groupTitle?.toLowerCase().includes(q),
-        );
-        const nameMatches =
-          s.deviceName.toLowerCase().includes(q) || (s.label && s.label.toLowerCase().includes(q));
-        if (nameMatches) return s;
-        if (matchingTabs.length > 0) return { ...s, tabs: matchingTabs };
-        return null;
-      })
-      .filter((s): s is SyncSession => s !== null);
+    return sessions.filter((s) =>
+      s.deviceName.toLowerCase().includes(q) ||
+      (s.label && s.label.toLowerCase().includes(q)) ||
+      s.tabs.some((t) => t.title?.toLowerCase().includes(q) || t.url.toLowerCase().includes(q)),
+    );
   };
 
   const visibleSessions = filterSessions(syncedSessions);
 
   return (
-    <Stack spacing="xs" p="xs" sx={{ flex: 1, minHeight: 0 }}>
-      {/* 重命名 Modal 弹窗 */}
-      <Modal
-        opened={!!editingSession}
-        onClose={() => setEditingSession(null)}
-        title="重命名会话区段 (Rename Session Section)"
-        size="sm"
-        centered
-      >
-        <Stack spacing="md">
-          <TextInput
-            label="自定义会话卡片名称"
-            placeholder="例如: 2026工作标签组 / 研发备忘录"
-            value={newSessionLabel}
-            onChange={(e) => setNewSessionLabel(e.target.value)}
-            autoFocus
-          />
-          <Group position="right">
-            <Button variant="default" size="xs" onClick={() => setEditingSession(null)}>
-              取消
-            </Button>
-            <Button color="cyan" size="xs" onClick={handleSaveRename}>
-              保存新名称
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", height: "100%" }}>
+      {/* 控流面板 B: 【数据视角】会话标签组允许同步走哪些云节点 */}
+      <div className="native-card" style={{ borderColor: "var(--primary-color)", backgroundColor: "rgba(79, 70, 229, 0.02)" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px", marginBottom: "4px" }}>
+          📡 【数据选途径】会话 Section 允许同步到的云端 Backend 节点：
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", fontSize: "11px" }}>
+          {Object.entries(allowedProviders).map(([providerKey, allowed]) => (
+            <label key={providerKey} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={allowed}
+                onChange={(e) => handleToggleProvider(providerKey, e.target.checked)}
+              />
+              <span style={{ textTransform: "capitalize" }}>{providerKey}</span>
+            </label>
+          ))}
+        </div>
+      </div>
 
-      {/* 顶部标题与手动刷新 */}
-      <Group position="apart" align="center">
-        <Group spacing="xs">
-          <IconGlobe size="1.1rem" color={theme.colors.cyan[6]} />
-          <Text size="xs" fw={600}>
-            多端会话区段 (Synced Session Sections)
-          </Text>
-        </Group>
-        <Group spacing={6}>
-          <Button
-            size="xs"
-            variant="light"
-            color="indigo"
-            leftIcon={<IconCloudDownload size={14} />}
-            loading={syncing}
-            onClick={handlePullSessions}
-          >
-            📥 拉取云端会话
-          </Button>
-          <Button
-            size="xs"
-            variant="outline"
-            color="cyan"
-            leftIcon={<IconCloudUpload size={14} />}
-            loading={syncing}
-            onClick={handlePushSessions}
-          >
-            📤 推送本机会话
-          </Button>
-          <Button
-            size="xs"
-            variant="subtle"
-            leftIcon={<IconRefresh size={14} />}
-            loading={loading}
-            onClick={loadData}
-          >
-            刷新
-          </Button>
-        </Group>
-      </Group>
+      {/* 自动保存规则与快捷设置 Bar */}
+      <div className="native-card flex-between" style={{ fontSize: "11px", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontWeight: 600 }}>⏰ 自动保存规则：</span>
+          <label style={{ display: "flex", alignItems: "center", gap: "3px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={autoSaveOnStartup}
+              onChange={(e) => handleToggleAutoSaveRule("startup", e.target.checked)}
+            />
+            <span>启动备份</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "3px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={autoSaveOnShutdown}
+              onChange={(e) => handleToggleAutoSaveRule("shutdown", e.target.checked)}
+            />
+            <span>关闭备份</span>
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+            <span>定时:</span>
+            <select
+              className="native-select"
+              style={{ padding: "2px 4px", fontSize: "11px" }}
+              value={autoSaveIntervalMinutes}
+              onChange={(e) => handleToggleAutoSaveRule("interval", e.target.value)}>
+              <option value={0}>关</option>
+              <option value={15}>15 分钟</option>
+              <option value={30}>30 分钟</option>
+              <option value={60}>60 分钟</option>
+            </select>
+          </div>
+        </div>
 
-      {/* 本机打开的标签页汇总指示 */}
-      <Card p="xs" radius="md" withBorder bg={lightOrDark(theme, "cyan.0", "dark.6")}>
-        <Group position="apart" align="center">
-          <Group spacing="xs">
-            <IconDeviceDesktop size={18} color={theme.colors.cyan[7]} />
-            <Stack spacing={0}>
-              <Text size="xs" fw={600}>
-                本机正打开 {localTabs.length} 个标签页
-              </Text>
-              <Text size="11px" color="dimmed">
-                支持跨端自动/手动同步 Tab Groups (颜色、名称、折叠状态)
-              </Text>
-            </Stack>
-          </Group>
-          <Button
-            size="xs"
-            variant="filled"
-            color="cyan"
-            leftIcon={<IconWorldUpload size={14} />}
-            onClick={() => handleOpenAllTabs(localTabs, true)}
-          >
-            新窗口批量还原 ({localTabs.length})
-          </Button>
-        </Group>
-      </Card>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "3px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={lazyLoading}
+              onChange={(e) => setLazyLoading(e.target.checked)}
+            />
+            <span>⚡ 标签页惰性挂起 (Tab Lazy Loading)</span>
+          </label>
+          <button className="native-btn native-btn-sm" disabled={syncing} onClick={handleRunSync}>
+            {syncing ? "同步中..." : "🔄 云端同步"}
+          </button>
+        </div>
+      </div>
 
-      {/* 跨端 Session 区段 (Section Cards) 滚动卡片列表 */}
-      <ScrollArea sx={{ flex: 1 }}>
-        <Stack spacing="xs">
-          {visibleSessions.length === 0 ? (
-            <Text size="xs" color="dimmed" align="center" py="xl">
-              {searchQuery ? `未找到匹配 "${searchQuery}" 的会话 Section` : "暂无任何设备会话卡片"}
-            </Text>
-          ) : (
-            visibleSessions.map((session) => {
-              const isExpanded = !!expandedSessions[session.id] || !!searchQuery.trim();
+      {/* TSM 左右双栏工作台布局 (Left: Timeline List, Right: Session Detail) */}
+      <div style={{ display: "flex", gap: "12px", flex: 1, minHeight: 0 }}>
+        {/* 左侧：时间轴 Section 列表 (Section Sidebar) */}
+        <div
+          className="native-card"
+          style={{ width: "260px", display: "flex", flexDirection: "column", gap: "8px", overflow: "hidden" }}>
+          <div className="flex-between">
+            <span style={{ fontWeight: 600, fontSize: "12px" }}>时间轴区段 ({visibleSessions.length})</span>
+            <button className="native-btn native-btn-sm native-btn-subtle" onClick={loadData}>
+              刷新
+            </button>
+          </div>
+
+          {/* 新建/手动快照保存栏 */}
+          <div style={{ display: "flex", gap: "4px" }}>
+            <input
+              type="text"
+              className="native-input flex-1"
+              style={{ fontSize: "11px", padding: "3px 6px" }}
+              placeholder="命名新会话快照..."
+              value={manualTitle}
+              onChange={(e) => setManualTitle(e.target.value)}
+            />
+            <button className="native-btn native-btn-sm" onClick={handleManualSaveSession}>
+              💾 保存
+            </button>
+          </div>
+
+          {/* 可滚动的时间轴卡片列表 */}
+          <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+            {visibleSessions.map((session) => {
+              const isSelected = session.id === selectedSessionId;
               const isLocal = session.id === "local_current";
-
-              // 统计该 Session 中的原生 Tab Groups 标签组
-              const groupNames = Array.from(
-                new Set(session.tabs.map((t) => t.groupTitle).filter(Boolean)),
-              );
+              const groupCount = new Set(session.tabs.map((t) => t.groupTitle).filter(Boolean)).size;
 
               return (
-                <Paper
+                <div
                   key={session.id}
-                  p="xs"
-                  radius="md"
-                  withBorder
-                  bg={lightOrDark(
-                    theme,
-                    isLocal ? "cyan.0" : "gray.0",
-                    isLocal ? "dark.6" : "dark.7",
-                  )}
-                  sx={{
-                    borderColor: isLocal ? theme.colors.cyan[5] : undefined,
+                  className="native-card-subtle"
+                  style={{
+                    cursor: "pointer",
+                    borderLeft: isSelected ? "4px solid var(--primary-color)" : "1px solid var(--border-color)",
+                    backgroundColor: isSelected ? "rgba(79, 70, 229, 0.08)" : undefined,
                   }}
-                >
-                  <Stack spacing="xs">
-                    {/* Section 标头栏 (Header) */}
-                    <Group position="apart" align="center" noWrap>
-                      <Group
-                        spacing="xs"
-                        sx={{ cursor: "pointer", flex: 1, overflow: "hidden" }}
-                        onClick={() => toggleSessionExpand(session.id)}
-                      >
-                        <ActionIcon size="xs" variant="subtle" color="cyan">
-                          {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-                        </ActionIcon>
-                        <IconDeviceDesktop
-                          size={16}
-                          color={isLocal ? theme.colors.cyan[6] : theme.colors.gray[6]}
-                        />
-                        <Stack spacing={1} sx={{ overflow: "hidden" }}>
-                          <Group spacing={6} noWrap>
-                            <Text size="xs" fw={600} truncate>
-                              {session.deviceName}
-                            </Text>
-                            {isLocal && (
-                              <Badge size="xs" color="cyan" variant="filled">
-                                本机
-                              </Badge>
-                            )}
-                            <Tooltip label="手动重命名改名">
-                              <ActionIcon
-                                size="xs"
-                                variant="subtle"
-                                color="gray"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenRenameModal(session);
-                                }}
-                              >
-                                <IconPencil size={12} />
-                              </ActionIcon>
-                            </Tooltip>
-                          </Group>
-                          <Text size="10px" color="dimmed">
-                            {session.label || "活跃会话"} ·{" "}
-                            {session.savedAt
-                              ? new Date(session.savedAt).toLocaleTimeString()
-                              : "刚刚"}
-                          </Text>
-                        </Stack>
-                      </Group>
-
-                      {/* 卡片右侧快捷操作按钮 */}
-                      <Group spacing={6} noWrap>
-                        {groupNames.length > 0 && (
-                          <Badge size="xs" variant="outline" color="indigo">
-                            📂 {groupNames.length} 标签组
-                          </Badge>
-                        )}
-                        <Badge size="xs" variant="light" color="cyan">
-                          {session.tabs.length} 标签
-                        </Badge>
-                        <Tooltip label="在新窗口全量还原此 Section 会话 (含 Tab Groups)">
-                          <Button
-                            size="xs"
-                            compact
-                            variant="light"
-                            color="cyan"
-                            onClick={() => handleOpenAllTabs(session.tabs, true)}
-                          >
-                            还原全组
-                          </Button>
-                        </Tooltip>
-                        {!isLocal && (
-                          <Tooltip label="删除此云端 Section 记录">
-                            <ActionIcon
-                              size="xs"
-                              color="red"
-                              variant="subtle"
-                              onClick={() => handleDeleteSession(session.id)}
-                            >
-                              <IconTrash size={14} />
-                            </ActionIcon>
-                          </Tooltip>
-                        )}
-                      </Group>
-                    </Group>
-
-                    {/* Section 折叠内容：标签页明细列表 (Tabs List) */}
-                    <Collapse in={isExpanded}>
-                      <Stack spacing={4} pt={4}>
-                        {session.tabs.map((tab, idx) => (
-                          <Paper
-                            key={`${session.id}_tab_${idx}`}
-                            p="xs"
-                            radius="xs"
-                            withBorder
-                            bg={lightOrDark(theme, "white", "dark.5")}
-                          >
-                            <Group position="apart" align="center" noWrap>
-                              <Group spacing="xs" sx={{ overflow: "hidden", flex: 1 }}>
-                                {tab.favIconUrl ? (
-                                  <Image
-                                    src={tab.favIconUrl}
-                                    w={14}
-                                    h={14}
-                                    fit="contain"
-                                    withPlaceholder
-                                  />
-                                ) : (
-                                  <IconGlobe size={14} color={theme.colors.gray[5]} />
-                                )}
-                                <Stack spacing={1} sx={{ overflow: "hidden" }}>
-                                  <Group spacing={6} noWrap>
-                                    {tab.groupTitle && (
-                                      <Badge
-                                        size="xs"
-                                        variant="filled"
-                                        color={getGroupMantineColor(tab.groupColor)}
-                                      >
-                                        📁 {tab.groupTitle}
-                                      </Badge>
-                                    )}
-                                    <Text size="xs" fw={500} truncate>
-                                      {tab.title || tab.url}
-                                    </Text>
-                                  </Group>
-                                  <Text size="10px" color="dimmed" truncate>
-                                    {tab.url}
-                                  </Text>
-                                </Stack>
-                              </Group>
-
-                              <Group spacing={4} noWrap>
-                                {tab.pinned && (
-                                  <Badge size="xs" color="blue" variant="dot">
-                                    固定
-                                  </Badge>
-                                )}
-                                <Tooltip label="打开此标签">
-                                  <ActionIcon
-                                    size="xs"
-                                    color="cyan"
-                                    onClick={() => handleOpenTab(tab.url)}
-                                  >
-                                    <IconExternalLink size={12} />
-                                  </ActionIcon>
-                                </Tooltip>
-                              </Group>
-                            </Group>
-                          </Paper>
-                        ))}
-                      </Stack>
-                    </Collapse>
-                  </Stack>
-                </Paper>
+                  onClick={() => setSelectedSessionId(session.id)}>
+                  <div className="flex-between" style={{ marginBottom: "2px" }}>
+                    <span style={{ fontWeight: 600, fontSize: "12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {session.label || session.deviceName}
+                    </span>
+                    {isLocal && <span className="native-badge native-badge-cyan">本机</span>}
+                  </div>
+                  <div className="flex-between" style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>
+                    <span>
+                      1 窗口 - {session.tabs.length} 标签 {groupCount > 0 ? `(${groupCount}组)` : ""}
+                    </span>
+                    <span>{session.savedAt ? new Date(session.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "刚刚"}</span>
+                  </div>
+                </div>
               );
-            })
+            })}
+          </div>
+        </div>
+
+        {/* 右侧：选中会话的树形明细面板 (Selected Session Workbench) */}
+        <div className="native-card" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", overflow: "hidden" }}>
+          {selectedSession ? (
+            <>
+              {/* 头部：标题与主控操作栏 */}
+              <div className="flex-between" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden" }}>
+                  {isEditingTitle ? (
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <input
+                        type="text"
+                        className="native-input"
+                        value={editingTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                      />
+                      <button className="native-btn native-btn-sm" onClick={() => handleSaveTitleEdit(selectedSession.id)}>
+                        保存
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span style={{ fontWeight: 700, fontSize: "14px" }}>
+                        {selectedSession.label || selectedSession.deviceName}
+                      </span>
+                      <button
+                        className="native-btn native-btn-sm native-btn-subtle"
+                        style={{ padding: "2px 4px" }}
+                        onClick={() => {
+                          setIsEditingTitle(true);
+                          setEditTitle(selectedSession.label || selectedSession.deviceName);
+                        }}>
+                        ✏️ 重命名
+                      </button>
+                    </>
+                  )}
+                  <span className="native-badge native-badge-blue">🏷️ {selectedSession.deviceName}</span>
+                </div>
+
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button
+                    className="native-btn native-btn-sm"
+                    onClick={() => handleRestoreSession(selectedSession.tabs, true)}>
+                    □ 在新窗口还原 ({selectedSession.tabs.length})
+                  </button>
+                  <button
+                    className="native-btn native-btn-sm native-btn-subtle"
+                    onClick={() => handleRestoreSession(selectedSession.tabs, false)}>
+                    ➕ 追加当前窗口
+                  </button>
+                  {selectedSession.id !== "local_current" && (
+                    <button
+                      className="native-btn native-btn-sm"
+                      style={{ backgroundColor: "#ef4444" }}
+                      onClick={() => handleDeleteSession(selectedSession.id)}>
+                      🗑️ 删除
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 树形编组树与网页列表 */}
+              <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
+                {(() => {
+                  const { groupsMap, ungroupedTabs } = groupTabsByGroup(selectedSession.tabs);
+
+                  return (
+                    <>
+                      {/* 嵌套编组的 Tab Group 块容器 */}
+                      {groupsMap.map((g, gIdx) => (
+                        <div
+                          key={`group_${gIdx}`}
+                          className="tab-group-container"
+                          style={{ borderColor: `var(--native-badge-${g.color}, var(--primary-color))` }}>
+                          <div className="flex-between" style={{ marginBottom: "6px" }}>
+                            <span className={`native-badge native-badge-${g.color}`}>
+                              📁 {g.title} ({g.tabs.length} 标签)
+                            </span>
+                            <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>Tab Group 专属组容器</span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "8px" }}>
+                            {g.tabs.map((t, tIdx) => (
+                              <div key={`g_tab_${tIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                                  {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
+                                  <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {t.title}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
+                                  {t.url.slice(0, 35)}...
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* 未编组的普通 Tab 列表 */}
+                      {ungroupedTabs.map((t, uIdx) => (
+                        <div key={`ungrouped_${uIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                            {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
+                            <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {t.title}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
+                            {t.url.slice(0, 35)}...
+                          </span>
+                        </div>
+                      ))}
+                    </>
+                  );
+                })()}
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "40px" }}>请在左侧选择要查看的会话 Section</div>
           )}
-        </Stack>
-      </ScrollArea>
-    </Stack>
+        </div>
+      </div>
+    </div>
   );
 };

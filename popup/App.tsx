@@ -24,6 +24,7 @@ import {
   IconCloudComputing,
   IconCrown,
   IconDevices,
+  IconFolderCheck,
   IconGlobe,
   IconHeart,
   IconHistory,
@@ -64,6 +65,7 @@ import { ExtensionsPage } from "./pages/ExtensionsPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { SessionsPage } from "./pages/SessionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { TabGroupsPage } from "./pages/TabGroupsPage";
 import {
   clipboardMonitorIsEnabledAtom,
   commandsAtom,
@@ -263,7 +265,7 @@ export const App = () => {
             size="xs"
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
-            w={220}
+            w={180}
             sx={{
               ".mantine-Input-input": {
                 borderColor: defaultBorderColor(theme),
@@ -293,6 +295,7 @@ export const App = () => {
               .with(Tab.Enum.Clipboard, () => "indigo.5")
               .with(Tab.Enum.Cloud, () => "violet.5")
               .with(Tab.Enum.Sessions, () => "cyan.5")
+              .with(Tab.Enum.TabGroups, () => "blue.6")
               .with(Tab.Enum.Bookmarks, () => "blue.5")
               .with(Tab.Enum.History, () => "orange.5")
               .with(Tab.Enum.Extensions, () => "teal.5")
@@ -326,6 +329,15 @@ export const App = () => {
                   </Group>
                 ),
                 value: Tab.Enum.Sessions,
+              },
+              {
+                label: (
+                  <Group align="center" spacing={4} noWrap>
+                    <IconFolderCheck size="0.85rem" />
+                    <Text size="xs">标签组</Text>
+                  </Group>
+                ),
+                value: Tab.Enum.TabGroups,
               },
               {
                 label: (
@@ -381,6 +393,7 @@ export const App = () => {
           .with(Tab.Enum.Clipboard, () => <AllPage />)
           .with(Tab.Enum.Cloud, () => <CloudPage />)
           .with(Tab.Enum.Sessions, () => <SessionsPage searchQuery={search} />)
+          .with(Tab.Enum.TabGroups, () => <TabGroupsPage />)
           .with(Tab.Enum.Bookmarks, () => <BookmarksPage searchQuery={search} />)
           .with(Tab.Enum.History, () => <HistoryPage searchQuery={search} />)
           .with(Tab.Enum.Extensions, () => <ExtensionsPage searchQuery={search} />)
