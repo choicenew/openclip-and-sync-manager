@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
-import { openSessionTabs, SyncTab } from "~utils/sync/handlers/sessions";
 
 export interface ActiveTabGroup {
   id: number;
@@ -19,7 +18,7 @@ export const TabGroupsPage: React.FC = () => {
   const [editTitle, setEditTitle] = useState("");
   const [editColor, setEditColor] = useState("blue");
 
-  // 数据模态视角：允许通过哪些云节点同步此 Tab Groups 数据
+  // 数据模态通道许可：Tab Groups 允许走哪些云节点
   const [allowedProviders, setAllowedProviders] = useState({
     chrome: true,
     webdav: true,
@@ -33,9 +32,35 @@ export const TabGroupsPage: React.FC = () => {
   const loadTabGroups = async () => {
     if (typeof chrome === "undefined" || !chrome.tabGroups) return;
     try {
-      const activeGroups = await chrome.tabGroups.query({});
-      const activeTabs = await chrome.tabs.query({});
-      const result: ActiveTabGroup[] = activeGroups.map((g) => {
+      // 兼容多窗口与当前窗口：先查全量 tabGroups 与全量 tabs
+      let activeGroups = await chrome.tabGroups.query({});
+      let activeTabs = await chrome.tabs.query({});
+
+      const groupMap = new Map<number, chrome.tabGroups.TabGroup>();
+      for (const g of activeGroups) {
+        if (g.id !== undefined && g.id !== -1) {
+          groupMap.set(g.id, g);
+        }
+      }
+
+      // 如果全量查询没有组，尝试在当前视窗限定查询
+      if (groupMap.size === 0 && chrome.windows) {
+        try {
+          const currentWin = await chrome.windows.getCurrent();
+          if (currentWin?.id) {
+            const winGroups = await chrome.tabGroups.query({ windowId: currentWin.id });
+            for (const g of winGroups) {
+              if (g.id !== undefined && g.id !== -1) {
+                groupMap.set(g.id, g);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("[TabGroupsPage] Window query fallback notice:", e);
+        }
+      }
+
+      const result: ActiveTabGroup[] = Array.from(groupMap.values()).map((g) => {
         const groupTabs = activeTabs
           .filter((t) => t.groupId === g.id)
           .map((t) => ({
@@ -52,6 +77,7 @@ export const TabGroupsPage: React.FC = () => {
           tabs: groupTabs,
         };
       });
+
       setGroups(result);
     } catch (e) {
       console.warn("[TabGroupsPage] Failed to fetch tab groups:", e);
@@ -60,7 +86,6 @@ export const TabGroupsPage: React.FC = () => {
 
   const loadSettings = async () => {
     const s = await getSyncSettings();
-    // 假设在 syncSettings 结构中读取 tabGroups 的网络通道许可
     const currentMods = s.providerModalities || {};
     setAllowedProviders({
       chrome: currentMods.chrome?.sessions ?? true,
@@ -84,7 +109,7 @@ export const TabGroupsPage: React.FC = () => {
     if (updatedMods[providerKey as keyof typeof updatedMods]) {
       updatedMods[providerKey as keyof typeof updatedMods] = {
         ...updatedMods[providerKey as keyof typeof updatedMods],
-        sessions: allowed, // Tab Groups 属于 sessions 大分类
+        sessions: allowed,
       };
     }
     await setSyncSettings({ providerModalities: updatedMods });
@@ -134,10 +159,10 @@ export const TabGroupsPage: React.FC = () => {
   );
 
   return (
-    <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
-      {/* 控流面板 B: 【数据类型视角】设置此 Tab Groups 数据允许走哪些云节点传输 */}
+    <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px", height: "100%", overflowY: "auto" }}>
+      {/* 控流面板 B: 【数据视角】Tab Groups 标签组允许同步走哪些云节点 */}
       <div className="native-card" style={{ borderColor: "var(--primary-color)", backgroundColor: "rgba(79, 70, 229, 0.02)" }}>
-        <div style={{ fontWeight: 600, fontSize: "12px", marginBottom: "6px" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px", marginBottom: "4px" }}>
           📡 【数据选途径】Tab Groups 标签组允许同步到的云端 Backend 节点：
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", fontSize: "11px" }}>
@@ -188,15 +213,21 @@ export const TabGroupsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 标签组列表 */}
+      {/* 标签组列表（带有彩色组容器包裹块 Group Block Container） */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {filteredGroups.length === 0 ? (
-          <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "20px" }}>
+          <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
             当前浏览器视窗中未检测到活跃的 Tab Groups 标签组
           </div>
         ) : (
           filteredGroups.map((g) => (
-            <div key={g.id} className="native-card tab-group-container" style={{ borderColor: `var(--native-badge-${g.color}, var(--primary-color))` }}>
+            <div
+              key={g.id}
+              className="native-card tab-group-container"
+              style={{
+                borderLeft: `5px solid var(--primary-color)`,
+                backgroundColor: "rgba(79, 70, 229, 0.03)",
+              }}>
               {editingGroupId === g.id ? (
                 <div style={{ display: "flex", gap: "6px", marginBottom: "8px", alignItems: "center" }}>
                   <input
@@ -225,7 +256,7 @@ export const TabGroupsPage: React.FC = () => {
               ) : (
                 <div className="flex-between" style={{ marginBottom: "6px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span className={`native-badge native-badge-${g.color}`}>{g.title}</span>
+                    <span className={`native-badge native-badge-${g.color}`}>📁 {g.title}</span>
                     <span style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
                       ({g.tabs.length} 标签页) {g.collapsed ? "[已折叠]" : "[展开]"}
                     </span>
@@ -238,7 +269,7 @@ export const TabGroupsPage: React.FC = () => {
                         setEditTitle(g.title);
                         setEditColor(g.color);
                       }}>
-                      ✏️ 重命名/颜色
+                      ✏️ 改名/颜色
                     </button>
                     <button
                       className="native-btn native-btn-sm native-btn-subtle"
@@ -249,8 +280,8 @@ export const TabGroupsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* 组内网页列表 */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "10px" }}>
+              {/* 组内网页列表容器 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "8px" }}>
                 {g.tabs.map((tab, idx) => (
                   <div key={tab.id || idx} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>

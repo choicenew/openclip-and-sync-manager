@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from "react";
+import { getDiscoveredDevices } from "~storage/discoveredDevices";
 import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
 import { deleteHistoryUrl, exportHistory, type SyncHistoryItem } from "~utils/sync/handlers/history";
+import type { DeviceInfo } from "~utils/sync/provider";
 
 export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) => {
-  const [historyItems, setHistoryItems] = useState<SyncHistoryItem[]>([]);
+  const [historyItems, setHistoryItems] = useState<(SyncHistoryItem & { deviceId?: string; deviceName?: string })[]>([]);
+  const [discoveredDevices, setDiscoveredDevices] = useState<DeviceInfo[]>([]);
+  const [selectedDeviceFilter, setSelectedDeviceFilter] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [toastMsg, setToastMsg] = useState("");
@@ -21,8 +25,24 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
 
   const loadHistory = async () => {
     setLoading(true);
-    const items = await exportHistory(7, 300);
-    setHistoryItems(items);
+    const [items, syncSet, devices] = await Promise.all([
+      exportHistory(7, 300),
+      getSyncSettings(),
+      getDiscoveredDevices(),
+    ]);
+
+    const deviceId = syncSet.deviceId || "local";
+    const deviceName = syncSet.deviceName || "此设备";
+
+    // 标注设备归属 Tag
+    const taggedItems = items.map((item) => ({
+      ...item,
+      deviceId,
+      deviceName,
+    }));
+
+    setHistoryItems(taggedItems);
+    setDiscoveredDevices(devices);
     setLoading(false);
   };
 
@@ -75,9 +95,11 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
   };
 
   const query = (searchQuery || filterText).toLowerCase().trim();
-  const filtered = historyItems.filter(
-    (item) => item.url.toLowerCase().includes(query) || (item.title && item.title.toLowerCase().includes(query)),
-  );
+  const filtered = historyItems.filter((item) => {
+    const matchesSearch = item.url.toLowerCase().includes(query) || (item.title && item.title.toLowerCase().includes(query));
+    const matchesDevice = selectedDeviceFilter === "all" || item.deviceId === selectedDeviceFilter;
+    return matchesSearch && matchesDevice;
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", height: "100%", overflowY: "auto" }}>
@@ -106,7 +128,7 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
         </div>
       </div>
 
-      {/* 搜索与刷新 Bar */}
+      {/* 按设备维度切分与过滤 Bar */}
       <div className="native-card flex-between" style={{ gap: "8px" }}>
         <input
           type="text"
@@ -115,12 +137,26 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
         />
-        <button className="native-btn native-btn-sm" disabled={loading} onClick={loadHistory}>
-          刷新历史
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600 }}>设备过滤:</span>
+          <select
+            className="native-select"
+            value={selectedDeviceFilter}
+            onChange={(e) => setSelectedDeviceFilter(e.target.value)}>
+            <option value="all">🌐 全量设备历史</option>
+            {discoveredDevices.map((d) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                💻 {d.deviceName} ({d.deviceId.slice(0, 6)}...)
+              </option>
+            ))}
+          </select>
+          <button className="native-btn native-btn-sm" disabled={loading} onClick={loadHistory}>
+            刷新历史
+          </button>
+        </div>
       </div>
 
-      {/* 历史卡片列表 */}
+      {/* 历史卡片列表 (带设备来源 Tag) */}
       <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, overflowY: "auto" }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
@@ -136,6 +172,7 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
                     {item.title || item.url}
                   </span>
                   <span className="native-badge native-badge-orange">{item.visitCount} 次访问</span>
+                  {item.deviceName && <span className="native-badge native-badge-blue">🏷️ {item.deviceName}</span>}
                 </div>
                 <div style={{ fontSize: "10px", color: "var(--text-dimmed)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {item.url}
