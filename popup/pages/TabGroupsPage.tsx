@@ -37,29 +37,33 @@ export const TabGroupsPage: React.FC = () => {
     try {
       const groupMap = new Map<string | number, ActiveTabGroup>();
 
-      // 1. 从 chrome.storage.local 读取 SW 实时捕获并持久化的 Tab Groups 注册表 (100% 极速秒级响应)
+      // 1. 从 openclip_permanently_saved_groups 增量持久化快照库读取 (即使网页关闭也永不丢失)
       try {
-        const storedData = await new Promise<any>((resolve) => {
-          chrome.storage.local.get("openclip_live_tab_groups", (res) => resolve(res.openclip_live_tab_groups));
+        const savedMapData = await new Promise<any>((resolve) => {
+          chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
+            resolve(res.openclip_permanently_saved_groups),
+          );
         });
-        if (Array.isArray(storedData)) {
-          for (const g of storedData) {
+        if (Array.isArray(savedMapData)) {
+          for (const g of savedMapData) {
             if (g && g.id !== undefined) {
-              groupMap.set(g.id, g);
+              groupMap.set(g.id, { ...g, isClosed: true, sourceLabel: "永久保存资产" });
             }
           }
         }
       } catch (e) {
-        console.warn("[TabGroupsPage] Read openclip_live_tab_groups notice:", e);
+        console.warn("[TabGroupsPage] Read openclip_permanently_saved_groups notice:", e);
       }
 
-      // 2. 双重保活：直接查当前所有 Tabs 并对 groupId > 0 进行扫捕
+      // 2. 扫捕当前视窗所有活着的 Tabs，彻底使用 Promise.all 消除异步竞态！
       let allTabs: chrome.tabs.Tab[] = [];
       try {
         allTabs = await chrome.tabs.query({});
       } catch (e) {
         console.warn("[TabGroupsPage] Tabs query notice:", e);
       }
+
+      const groupFetchPromises: Promise<void>[] = [];
 
       for (const t of allTabs) {
         if (t.groupId !== undefined && t.groupId !== -1) {
@@ -77,14 +81,17 @@ export const TabGroupsPage: React.FC = () => {
             groupMap.set(t.groupId, existing);
 
             if (chrome.tabGroups && chrome.tabGroups.get) {
-              chrome.tabGroups.get(t.groupId).then((g) => {
-                if (g) {
-                  if (g.title) existing!.title = g.title;
-                  if (g.color) existing!.color = g.color;
-                  existing!.collapsed = !!g.collapsed;
-                  setGroups(Array.from(groupMap.values()));
-                }
-              }).catch(() => {});
+              const fetchP = chrome.tabGroups
+                .get(t.groupId)
+                .then((g) => {
+                  if (g) {
+                    if (g.title) existing!.title = g.title;
+                    if (g.color) existing!.color = g.color;
+                    existing!.collapsed = !!g.collapsed;
+                  }
+                })
+                .catch(() => {});
+              groupFetchPromises.push(fetchP);
             }
           }
 
@@ -99,7 +106,12 @@ export const TabGroupsPage: React.FC = () => {
         }
       }
 
-      // 3. 调用 chrome.sessions.getRecentlyClosed 读取最近关闭/归档的 Tab Groups
+      // 关键修正 A：必须等所有异步 chrome.tabGroups.get 捞完，再继续，彻底消灭渲染竞态与空白卡死！
+      if (groupFetchPromises.length > 0) {
+        await Promise.all(groupFetchPromises);
+      }
+
+      // 3. 调取 chrome.sessions.getRecentlyClosed 读取最近关闭的组
       if (chrome.sessions && chrome.sessions.getRecentlyClosed) {
         try {
           const recentlyClosed = await chrome.sessions.getRecentlyClosed({});
@@ -130,7 +142,7 @@ export const TabGroupsPage: React.FC = () => {
         }
       }
 
-      // 4. 聚合提取 Synced Sessions 快照中保存的 Tab Groups
+      // 4. 聚合提取 Synced Sessions / 历史 Section 快照里的 Tab Groups
       try {
         const syncedSessions = await getSyncedSessions();
         for (const session of syncedSessions) {
@@ -187,10 +199,10 @@ export const TabGroupsPage: React.FC = () => {
     loadAllTabGroups();
     loadSettings();
 
-    // 实时监听 chrome.storage.local 与原生 Tab Groups 事件
+    // 监听 storage 变动与原生 Tab Groups 事件
     if (typeof chrome !== "undefined") {
       const handleStorageChange = (changes: any, areaName: string) => {
-        if (areaName === "local" && changes.openclip_live_tab_groups) {
+        if (areaName === "local" && (changes.openclip_live_tab_groups || changes.openclip_permanently_saved_groups)) {
           loadAllTabGroups();
         }
       };
@@ -244,6 +256,22 @@ export const TabGroupsPage: React.FC = () => {
     }
   };
 
+  const handleSaveToPermanentAssets = async (group: ActiveTabGroup) => {
+    if (typeof chrome === "undefined") return;
+    try {
+      const existing: ActiveTabGroup[] = await new Promise((resolve) => {
+        chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
+          resolve(res.openclip_permanently_saved_groups || []),
+        );
+      });
+      const updated = [group, ...existing.filter((item) => item.id !== group.id)];
+      await chrome.storage.local.set({ openclip_permanently_saved_groups: updated });
+      loadAllTabGroups();
+    } catch (e) {
+      console.warn("[TabGroupsPage] Save to permanent assets error:", e);
+    }
+  };
+
   const handleUpdateGroup = async (groupId: string | number) => {
     if (typeof groupId === "string" || typeof chrome === "undefined" || !chrome.tabGroups) return;
     try {
@@ -271,7 +299,7 @@ export const TabGroupsPage: React.FC = () => {
         if (chrome.tabGroups && tabIds.length > 0) {
           const newGroupId = await chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] });
           await chrome.tabGroups.update(newGroupId, {
-            title: group.title,
+            title: group.title.replace(/\s*\[最近关闭\]$/, ""),
             color: (group.color as any) || "blue",
           });
         }
@@ -343,11 +371,11 @@ export const TabGroupsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 标签组卡片阵列 (含活跃、最近关闭及已保存会话中的 Tab Groups) */}
+      {/* 标签组卡片阵列 (双轨制：活跃组 + 永久固化备份资产库) */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {filteredGroups.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
-            未检测到任何活跃、已关闭或保存的 Tab Groups
+            未检测到任何活跃、已关闭或永久保存的 Tab Groups
           </div>
         ) : (
           filteredGroups.map((g) => (
@@ -392,6 +420,11 @@ export const TabGroupsPage: React.FC = () => {
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
+                    {!g.isClosed && (
+                      <button className="native-btn native-btn-sm native-btn-subtle" onClick={() => handleSaveToPermanentAssets(g)}>
+                        💾 固化为资产
+                      </button>
+                    )}
                     {g.isClosed ? (
                       <button className="native-btn native-btn-sm" onClick={() => handleRestoreClosedGroup(g)}>
                         □ 一键恢复整个 Tab Group
