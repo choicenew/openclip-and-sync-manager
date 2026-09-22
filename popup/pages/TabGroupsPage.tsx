@@ -37,112 +37,110 @@ export const TabGroupsPage: React.FC = () => {
     try {
       const groupMap = new Map<string | number, ActiveTabGroup>();
 
-      // 1. 从 openclip_permanently_saved_groups 增量持久化快照库读取 (即使网页关闭也永不丢失)
-      try {
-        const savedMapData = await new Promise<any>((resolve) => {
-          chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
-            resolve(res.openclip_permanently_saved_groups),
-          );
-        });
-        if (Array.isArray(savedMapData)) {
-          for (const g of savedMapData) {
-            if (g && g.id !== undefined) {
-              groupMap.set(g.id, { ...g, isClosed: true, sourceLabel: "永久保存资产" });
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("[TabGroupsPage] Read openclip_permanently_saved_groups notice:", e);
-      }
-
-      // 2. 扫捕当前视窗所有活着的 Tabs，彻底使用 Promise.all 消除异步竞态！
-      let allTabs: chrome.tabs.Tab[] = [];
-      try {
-        allTabs = await chrome.tabs.query({});
-      } catch (e) {
-        console.warn("[TabGroupsPage] Tabs query notice:", e);
-      }
-
-      const groupFetchPromises: Promise<void>[] = [];
-
-      for (const t of allTabs) {
-        if (t.groupId !== undefined && t.groupId !== -1) {
-          let existing = groupMap.get(t.groupId);
-          if (!existing) {
-            existing = {
-              id: t.groupId,
-              title: `Tab Group #${t.groupId}`,
-              color: "blue",
-              collapsed: false,
-              isClosed: false,
-              sourceLabel: "当前活跃",
-              tabs: [],
-            };
-            groupMap.set(t.groupId, existing);
-
-            if (chrome.tabGroups && chrome.tabGroups.get) {
-              const fetchP = chrome.tabGroups
-                .get(t.groupId)
-                .then((g) => {
-                  if (g) {
-                    if (g.title) existing!.title = g.title;
-                    if (g.color) existing!.color = g.color;
-                    existing!.collapsed = !!g.collapsed;
-                  }
-                })
-                .catch(() => {});
-              groupFetchPromises.push(fetchP);
-            }
-          }
-
-          if (!existing.tabs.some((item) => item.id === t.id || (item.url === t.url && item.title === t.title))) {
-            existing.tabs.push({
-              id: t.id,
-              title: t.title || t.url || "无标题页",
-              url: t.url || "",
-              favIconUrl: t.favIconUrl,
-            });
-          }
-        }
-      }
-
-      // 关键修正 A：必须等所有异步 chrome.tabGroups.get 捞完，再继续，彻底消灭渲染竞态与空白卡死！
-      if (groupFetchPromises.length > 0) {
-        await Promise.all(groupFetchPromises);
-      }
-
-      // 3. 调取 chrome.sessions.getRecentlyClosed 读取最近关闭的组
-      if (chrome.sessions && chrome.sessions.getRecentlyClosed) {
+      // 1. 调取官方原生 chrome.tabGroups.query({}) 拿当前打开的活跃组
+      if (chrome.tabGroups && chrome.tabGroups.query) {
         try {
-          const recentlyClosed = await chrome.sessions.getRecentlyClosed({});
-          for (const item of recentlyClosed) {
-            if (item.group) {
-              const closedG = item.group;
-              const closedGroupId = `closed_group_${item.lastModified}_${closedG.title || "group"}`;
-              if (!groupMap.has(closedGroupId)) {
-                const closedTabs = (closedG.tabs || []).map((t) => ({
-                  title: t.title || t.url || "已关闭标签页",
+          const activeGroups = await chrome.tabGroups.query({});
+          for (const ag of activeGroups) {
+            let groupTabs: { id?: number; title: string; url: string; favIconUrl?: string }[] = [];
+            if (chrome.tabs && chrome.tabs.query) {
+              try {
+                const tabs = await chrome.tabs.query({ groupId: ag.id });
+                groupTabs = tabs.map((t) => ({
+                  id: t.id,
+                  title: t.title || t.url || "无标题页",
                   url: t.url || "",
                   favIconUrl: t.favIconUrl,
                 }));
-                groupMap.set(closedGroupId, {
-                  id: closedGroupId,
-                  title: closedG.title || "已关闭 Tab Group",
-                  color: closedG.color || "grey",
+              } catch (e) {}
+            }
+
+            groupMap.set(ag.id, {
+              id: ag.id,
+              title: ag.title || `Tab Group #${ag.id}`,
+              color: ag.color || "blue",
+              collapsed: !!ag.collapsed,
+              isClosed: false,
+              sourceLabel: "当前视窗活跃",
+              tabs: groupTabs,
+            });
+          }
+        } catch (e) {
+          console.warn("[TabGroupsPage] tabGroups.query notice:", e);
+        }
+      }
+
+      // 2. 调取 Chrome 官方 Saved Tab Groups API (chrome.tabGroups.getSavedGroups)，读取 㗊 栏保存组
+      if (chrome.tabGroups && (chrome.tabGroups as any).getSavedGroups) {
+        try {
+          const savedGroups = await (chrome.tabGroups as any).getSavedGroups({});
+          if (Array.isArray(savedGroups)) {
+            for (const sg of savedGroups) {
+              const key = sg.savedGroupId || `saved_${sg.title}`;
+              if (!groupMap.has(key)) {
+                const groupTabs = (sg.urls || sg.tabs || []).map((t: any) => ({
+                  title: typeof t === "string" ? t : t.title || t.url || "已保存网页",
+                  url: typeof t === "string" ? t : t.url || "",
+                  favIconUrl: t.favIconUrl,
+                }));
+                groupMap.set(key, {
+                  id: key,
+                  title: sg.title || "已保存 Tab Group",
+                  color: sg.color || "blue",
                   collapsed: true,
                   isClosed: true,
-                  sourceLabel: "最近关闭",
-                  tabs: closedTabs,
+                  sourceLabel: "Chrome 㗊 栏保存组",
+                  tabs: groupTabs,
                 });
               }
             }
           }
         } catch (e) {
-          console.warn("[TabGroupsPage] sessions getRecentlyClosed notice:", e);
+          console.warn("[TabGroupsPage] tabGroups.getSavedGroups notice:", e);
         }
       }
 
-      // 4. 聚合提取 Synced Sessions / 历史 Section 快照里的 Tab Groups
+      // 3. 调取官方 chrome.sessions.getDevices() 穿透获取登录同账号的多端设备 Session 组
+      if (chrome.sessions && chrome.sessions.getDevices) {
+        try {
+          const devices = await chrome.sessions.getDevices({});
+          if (Array.isArray(devices)) {
+            for (const dev of devices) {
+              for (const session of dev.sessions || []) {
+                if (session.window && session.window.tabs) {
+                  for (const tab of session.window.tabs) {
+                    if (tab.groupTitle) {
+                      const devGroupId = `dev_group_${dev.deviceName}_${tab.groupTitle}`;
+                      if (!groupMap.has(devGroupId)) {
+                        const devGroupTabs = session.window.tabs
+                          .filter((t: any) => t.groupTitle === tab.groupTitle)
+                          .map((t: any) => ({
+                            title: t.title || t.url || "多端网页",
+                            url: t.url || "",
+                            favIconUrl: t.favIconUrl,
+                          }));
+                        groupMap.set(devGroupId, {
+                          id: devGroupId,
+                          title: tab.groupTitle,
+                          color: tab.groupColor || "purple",
+                          collapsed: true,
+                          isClosed: true,
+                          sourceLabel: `来自设备: ${dev.deviceName || "从设备"}`,
+                          tabs: devGroupTabs,
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("[TabGroupsPage] sessions.getDevices notice:", e);
+        }
+      }
+
+      // 4. 读取从已保存会话 / 历史 Section 快照里提取的 Tab Groups
       try {
         const syncedSessions = await getSyncedSessions();
         for (const session of syncedSessions) {
@@ -199,31 +197,17 @@ export const TabGroupsPage: React.FC = () => {
     loadAllTabGroups();
     loadSettings();
 
-    // 监听 storage 变动与原生 Tab Groups 事件
-    if (typeof chrome !== "undefined") {
-      const handleStorageChange = (changes: any, areaName: string) => {
-        if (areaName === "local" && (changes.openclip_live_tab_groups || changes.openclip_permanently_saved_groups)) {
-          loadAllTabGroups();
-        }
-      };
-      chrome.storage.onChanged.addListener(handleStorageChange);
-
-      if (chrome.tabGroups) {
-        const handleGroupChange = () => loadAllTabGroups();
-        chrome.tabGroups.onCreated?.addListener(handleGroupChange);
-        chrome.tabGroups.onUpdated?.addListener(handleGroupChange);
-        chrome.tabGroups.onRemoved?.addListener(handleGroupChange);
-
-        return () => {
-          chrome.storage.onChanged.removeListener(handleStorageChange);
-          chrome.tabGroups.onCreated?.removeListener(handleGroupChange);
-          chrome.tabGroups.onUpdated?.removeListener(handleGroupChange);
-          chrome.tabGroups.onRemoved?.removeListener(handleGroupChange);
-        };
-      }
+    // 实时监听 Chrome 原生 Tab Groups 事件
+    if (typeof chrome !== "undefined" && chrome.tabGroups) {
+      const handleGroupChange = () => loadAllTabGroups();
+      chrome.tabGroups.onCreated?.addListener(handleGroupChange);
+      chrome.tabGroups.onUpdated?.addListener(handleGroupChange);
+      chrome.tabGroups.onRemoved?.addListener(handleGroupChange);
 
       return () => {
-        chrome.storage.onChanged.removeListener(handleStorageChange);
+        chrome.tabGroups.onCreated?.removeListener(handleGroupChange);
+        chrome.tabGroups.onUpdated?.removeListener(handleGroupChange);
+        chrome.tabGroups.onRemoved?.removeListener(handleGroupChange);
       };
     }
   }, []);
@@ -256,22 +240,6 @@ export const TabGroupsPage: React.FC = () => {
     }
   };
 
-  const handleSaveToPermanentAssets = async (group: ActiveTabGroup) => {
-    if (typeof chrome === "undefined") return;
-    try {
-      const existing: ActiveTabGroup[] = await new Promise((resolve) => {
-        chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
-          resolve(res.openclip_permanently_saved_groups || []),
-        );
-      });
-      const updated = [group, ...existing.filter((item) => item.id !== group.id)];
-      await chrome.storage.local.set({ openclip_permanently_saved_groups: updated });
-      loadAllTabGroups();
-    } catch (e) {
-      console.warn("[TabGroupsPage] Save to permanent assets error:", e);
-    }
-  };
-
   const handleUpdateGroup = async (groupId: string | number) => {
     if (typeof groupId === "string" || typeof chrome === "undefined" || !chrome.tabGroups) return;
     try {
@@ -299,7 +267,7 @@ export const TabGroupsPage: React.FC = () => {
         if (chrome.tabGroups && tabIds.length > 0) {
           const newGroupId = await chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] });
           await chrome.tabGroups.update(newGroupId, {
-            title: group.title.replace(/\s*\[最近关闭\]$/, ""),
+            title: group.title.replace(/\s*\[已保存\]$/, ""),
             color: (group.color as any) || "blue",
           });
         }
@@ -371,11 +339,11 @@ export const TabGroupsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 标签组卡片阵列 (双轨制：活跃组 + 永久固化备份资产库) */}
+      {/* 标签组卡片阵列 (双轨制：当前视窗活跃组 + 多端已保存/同步资产组) */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {filteredGroups.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
-            未检测到任何活跃、已关闭或永久保存的 Tab Groups
+            未检测到任何活跃、已保存或多端同步的 Tab Groups
           </div>
         ) : (
           filteredGroups.map((g) => (
@@ -420,11 +388,6 @@ export const TabGroupsPage: React.FC = () => {
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
-                    {!g.isClosed && (
-                      <button className="native-btn native-btn-sm native-btn-subtle" onClick={() => handleSaveToPermanentAssets(g)}>
-                        💾 固化为资产
-                      </button>
-                    )}
                     {g.isClosed ? (
                       <button className="native-btn native-btn-sm" onClick={() => handleRestoreClosedGroup(g)}>
                         □ 一键恢复整个 Tab Group
