@@ -11,12 +11,10 @@ import {
 } from "~storage/floatingWindowId";
 import { getMasterDeviceState, type MasterDeviceState } from "~storage/masterDevice";
 import { Tab } from "~types/tab";
-import db from "~utils/db/react";
 import { VERSION } from "~utils/version";
 
 import { ShortcutBadge } from "./components/ShortcutBadge";
 import { useApp } from "./hooks/useApp";
-import { useCloudEntriesQuery } from "./hooks/useCloudEntriesQuery";
 import { SEARCH_INPUT_ID } from "./hooks/useEntryListNavigation";
 import { AllPage } from "./pages/AllPage";
 import { BookmarksPage } from "./pages/BookmarksPage";
@@ -70,10 +68,6 @@ export const App: React.FC = () => {
       command.name ===
       (process.env.PLASMO_TARGET === "firefox-mv2" ? "_execute_browser_action" : "_execute_action"),
   )?.shortcut;
-
-  // Preload queries
-  db.useConnectionStatus();
-  useCloudEntriesQuery();
 
   if (clipboardMonitorIsEnabled === undefined || refreshToken === undefined) {
     return null;

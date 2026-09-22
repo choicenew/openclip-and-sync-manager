@@ -58,6 +58,9 @@ export const defaultSettings = {
   sessionAutoSaveIntervalMinutes: 30, // 默认每 30 分钟定时自动快照，0 为关闭
   sessionAutoSaveOnStartup: true,
   sessionAutoSaveOnShutdown: true,
+  sessionIgnoreUrls: "https://example.com/*\nhttps://example.net/*",
+  sessionMinTabCount: 1,
+  sessionSaveWindowMode: "current", // "current" | "all"
 };
 
 export const BlacklistRuleSchema = z.object({
@@ -100,6 +103,9 @@ export const Settings = z
     sessionAutoSaveIntervalMinutes: z.number().default(defaultSettings.sessionAutoSaveIntervalMinutes),
     sessionAutoSaveOnStartup: z.boolean().default(defaultSettings.sessionAutoSaveOnStartup),
     sessionAutoSaveOnShutdown: z.boolean().default(defaultSettings.sessionAutoSaveOnShutdown),
+    sessionIgnoreUrls: z.string().default(defaultSettings.sessionIgnoreUrls),
+    sessionMinTabCount: z.number().default(defaultSettings.sessionMinTabCount),
+    sessionSaveWindowMode: z.string().default(defaultSettings.sessionSaveWindowMode),
   })
   .default(defaultSettings);
 export type Settings = z.infer<typeof Settings>;
