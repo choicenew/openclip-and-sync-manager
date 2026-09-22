@@ -25,14 +25,14 @@ export interface MultiModalSyncPayload extends CloudData {
 
 /** 打包本地全模态同步数据 */
 export async function getLocalMultiModalPayload(): Promise<MultiModalSyncPayload> {
-  const [baseCloudData, syncSettings, sysSettings] = await Promise.all([
+  const [baseCloudData, syncSet, sysSettings] = await Promise.all([
     getLocalAsCloudData(),
     getSyncSettings(),
     getSettings(),
   ]);
 
-  const deviceId = syncSettings.deviceId || "local_device";
-  const deviceName = syncSettings.deviceName || "此设备";
+  const deviceId = syncSet.deviceId || "local_device";
+  const deviceName = syncSet.deviceName || "此设备";
   const modalities = sysSettings.syncModalities || {
     clipboard: true,
     bookmarks: true,
@@ -64,10 +64,10 @@ export async function getLocalMultiModalPayload(): Promise<MultiModalSyncPayload
 export function filterPayloadForProvider(
   payload: MultiModalSyncPayload,
   providerKey: "chrome" | "webdav" | "onedrive" | "googledrive" | "gist" | "s3" | "customRest",
-  syncSettings: any,
+  syncSettingsVal: any,
   globalModalities: { clipboard: boolean; bookmarks: boolean; sessions: boolean; history: boolean; extensions: boolean },
 ): MultiModalSyncPayload {
-  const pMods = syncSettings.providerModalities?.[providerKey] || {
+  const pMods = syncSettingsVal?.providerModalities?.[providerKey] || {
     clipboard: true,
     bookmarks: true,
     sessions: true,
@@ -91,7 +91,7 @@ export function filterPayloadForProvider(
   };
 }
 
-/** 执行 v2.6.0 分模态独立文件同步任务 */
+/** 执行 v2.7.0 分模态双向精细交错门控同步任务 */
 export async function runFullSync(): Promise<{ success: boolean; message: string }> {
   const provider = await getActiveProvider();
   if (!provider || !(await provider.isAvailable())) {
@@ -99,11 +99,11 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
     return { success: false, message: "未配置或未启用同步后端" };
   }
 
-  await setSyncStatus({ status: "syncing", message: "全模态分文件同步中..." });
+  await setSyncStatus({ status: "syncing", message: "全模态分文件双向门控同步中..." });
 
   try {
     const localPayload = await getLocalMultiModalPayload();
-    const sysSettings = await getSettings();
+    const [sysSettings, syncSet] = await Promise.all([getSettings(), getSyncSettings()]);
     const modalities = sysSettings.syncModalities || {
       clipboard: true,
       bookmarks: true,
@@ -139,19 +139,22 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
     });
 
     // 严格经过双向过滤网格：每个 Provider 独立的模态许可规则
-    const providerKey = (provider.name.toLowerCase().includes("chrome")
+    const pName = provider.name.toLowerCase();
+    const providerKey = (pName.includes("chrome")
       ? "chrome"
-      : provider.name.toLowerCase().includes("webdav")
+      : pName.includes("webdav")
       ? "webdav"
-      : provider.name.toLowerCase().includes("onedrive")
+      : pName.includes("onedrive")
       ? "onedrive"
-      : provider.name.toLowerCase().includes("google")
+      : pName.includes("google")
       ? "googledrive"
-      : provider.name.toLowerCase().includes("s3")
+      : pName.includes("s3")
       ? "s3"
+      : pName.includes("gist")
+      ? "gist"
       : "customRest") as any;
 
-    const pushPayload = filterPayloadForProvider(rawPushPayload, providerKey, syncSettings, modalities);
+    const pushPayload = filterPayloadForProvider(rawPushPayload, providerKey, syncSet, modalities);
 
     await provider.push(pushPayload);
     await saveCloudDataToLocal(mergedBase);
@@ -169,7 +172,7 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
 
     const statusMsg = masterState.isForcedAuxiliary
       ? "分模态同步完成 (受云端主设备规则约束)"
-      : "v2.6.0 分模态 WebDAV 独立文件同步完成";
+      : "v2.7.0 分模态 WebDAV 独立文件同步完成";
 
     await setSyncStatus({
       status: "success",

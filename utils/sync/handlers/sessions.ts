@@ -2,6 +2,7 @@
  * utils/sync/handlers/sessions.ts
  * 打开的标签页 (Open Sections / Active Tabs) 与跨设备会话同步模块
  * 深度支持原生 chrome.tabGroups 跨端（Chrome <-> Edge）标签组颜色、名字与折叠状态无缝恢复
+ * 深度支持 Tab lazy loading 惰性挂起 (discarded: true)，恢复数百标签页内存近乎 0 MB
  */
 
 export interface SyncTab {
@@ -83,8 +84,12 @@ export async function exportSession(deviceId: string, deviceName: string, label?
   };
 }
 
-/** 在新窗口或当前窗口批量还原打开会话中的标签页，并重新建组 (Tab Groups) */
-export async function openSessionTabs(tabs: SyncTab[], inNewWindow = true): Promise<void> {
+/** 在新窗口或当前窗口批量还原打开会话中的标签页，并重新建组 (Tab Groups)，支持 lazyLoad 惰性挂起压低内存 */
+export async function openSessionTabs(
+  tabs: SyncTab[],
+  inNewWindow = true,
+  lazyLoad = true,
+): Promise<void> {
   if (typeof chrome === "undefined" || !chrome.tabs) return;
   const validTabs = tabs.filter(
     (t) => t.url && (t.url.startsWith("http://") || t.url.startsWith("https://")),
@@ -100,14 +105,37 @@ export async function openSessionTabs(tabs: SyncTab[], inNewWindow = true): Prom
         createdTabMap.push({ tabId: win.tabs[0].id, syncTab: validTabs[0]! });
         for (let i = 1; i < validTabs.length; i++) {
           const t = validTabs[i]!;
-          const createdTab = await chrome.tabs.create({ windowId: win.id, url: t.url, active: false });
-          if (createdTab.id) createdTabMap.push({ tabId: createdTab.id, syncTab: t });
+          const createdTab = await chrome.tabs.create({
+            windowId: win.id,
+            url: t.url,
+            active: false,
+          });
+          if (createdTab.id) {
+            createdTabMap.push({ tabId: createdTab.id, syncTab: t });
+            // 如果启用 Tab lazy loading，对非激活的后组标签页进行 chrome.tabs.discard 挂起以省内存
+            if (lazyLoad && chrome.tabs.discard) {
+              try {
+                await chrome.tabs.discard(createdTab.id);
+              } catch (e) {
+                // Ignore discard warning if tab is active
+              }
+            }
+          }
         }
       }
     } else {
       for (const t of validTabs) {
         const createdTab = await chrome.tabs.create({ url: t.url, active: false });
-        if (createdTab.id) createdTabMap.push({ tabId: createdTab.id, syncTab: t });
+        if (createdTab.id) {
+          createdTabMap.push({ tabId: createdTab.id, syncTab: t });
+          if (lazyLoad && chrome.tabs.discard) {
+            try {
+              await chrome.tabs.discard(createdTab.id);
+            } catch (e) {
+              // Ignore
+            }
+          }
+        }
       }
     }
 
