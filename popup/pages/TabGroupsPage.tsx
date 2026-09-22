@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
 
 export interface ActiveTabGroup {
-  id: number;
+  id: string | number;
   title: string;
   color: string;
   collapsed: boolean;
+  isClosed?: boolean;
   tabs: { id?: number; title: string; url: string; favIconUrl?: string }[];
 }
 
@@ -14,7 +15,7 @@ export const TabGroupsPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [selectedColor, setSelectedColor] = useState<string>("blue");
   const [newGroupTitle, setNewGroupTitle] = useState("");
-  const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | number | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editColor, setEditColor] = useState("blue");
 
@@ -29,58 +30,105 @@ export const TabGroupsPage: React.FC = () => {
     customRest: true,
   });
 
-  const loadTabGroups = async () => {
-    if (typeof chrome === "undefined" || !chrome.tabGroups) return;
+  const loadAllTabGroups = async () => {
+    if (typeof chrome === "undefined") return;
     try {
-      // 兼容多窗口与当前窗口：先查全量 tabGroups 与全量 tabs
-      let activeGroups = await chrome.tabGroups.query({});
-      let activeTabs = await chrome.tabs.query({});
+      const groupMap = new Map<string | number, ActiveTabGroup>();
 
-      const groupMap = new Map<number, chrome.tabGroups.TabGroup>();
-      for (const g of activeGroups) {
-        if (g.id !== undefined && g.id !== -1) {
-          groupMap.set(g.id, g);
+      // 1. 查询当前打开的所有活跃网页与标签组 (包含跨窗口与全量组)
+      const allTabs = await chrome.tabs.query({});
+      let activeGroups: chrome.tabGroups.TabGroup[] = [];
+
+      if (chrome.tabGroups) {
+        try {
+          activeGroups = await chrome.tabGroups.query({});
+        } catch (e) {
+          console.warn("[TabGroupsPage] tabGroups query notice:", e);
         }
       }
 
-      // 如果全量查询没有组，尝试在当前视窗限定查询
-      if (groupMap.size === 0 && chrome.windows) {
+      // 按 groupId 构建组基础结构
+      for (const g of activeGroups) {
+        if (g.id !== undefined && g.id !== -1) {
+          groupMap.set(g.id, {
+            id: g.id,
+            title: g.title || "未命名 Tab Group",
+            color: g.color || "grey",
+            collapsed: !!g.collapsed,
+            isClosed: false,
+            tabs: [],
+          });
+        }
+      }
+
+      // 将各标签页挂载到对应的 Tab Group 中
+      for (const t of allTabs) {
+        if (t.groupId !== undefined && t.groupId !== -1) {
+          let existing = groupMap.get(t.groupId);
+          if (!existing && chrome.tabGroups) {
+            // 保底防护：直接通过 t.groupId 调用 chrome.tabGroups.get 单独获取
+            try {
+              const fetchedGroup = await chrome.tabGroups.get(t.groupId);
+              if (fetchedGroup) {
+                existing = {
+                  id: fetchedGroup.id,
+                  title: fetchedGroup.title || "未命名 Tab Group",
+                  color: fetchedGroup.color || "grey",
+                  collapsed: !!fetchedGroup.collapsed,
+                  isClosed: false,
+                  tabs: [],
+                };
+                groupMap.set(fetchedGroup.id, existing);
+              }
+            } catch (e) {
+              // Ignore single fetch fail
+            }
+          }
+
+          if (existing) {
+            existing.tabs.push({
+              id: t.id,
+              title: t.title || t.url || "无标题页",
+              url: t.url || "",
+              favIconUrl: t.favIconUrl,
+            });
+          }
+        }
+      }
+
+      // 2. 调用 chrome.sessions.getRecentlyClosed 读取被关闭/归档的 Tab Groups
+      if (chrome.sessions && chrome.sessions.getRecentlyClosed) {
         try {
-          const currentWin = await chrome.windows.getCurrent();
-          if (currentWin?.id) {
-            const winGroups = await chrome.tabGroups.query({ windowId: currentWin.id });
-            for (const g of winGroups) {
-              if (g.id !== undefined && g.id !== -1) {
-                groupMap.set(g.id, g);
+          const recentlyClosed = await chrome.sessions.getRecentlyClosed({});
+          for (const item of recentlyClosed) {
+            if (item.group) {
+              const closedG = item.group;
+              const closedGroupId = `closed_group_${item.lastModified}_${closedG.title || "group"}`;
+              if (!groupMap.has(closedGroupId)) {
+                const closedTabs = (closedG.tabs || []).map((t) => ({
+                  title: t.title || t.url || "已关闭标签页",
+                  url: t.url || "",
+                  favIconUrl: t.favIconUrl,
+                }));
+                groupMap.set(closedGroupId, {
+                  id: closedGroupId,
+                  title: `${closedG.title || "已关闭标签组"} [最近关闭]`,
+                  color: closedG.color || "grey",
+                  collapsed: true,
+                  isClosed: true,
+                  tabs: closedTabs,
+                });
               }
             }
           }
         } catch (e) {
-          console.warn("[TabGroupsPage] Window query fallback notice:", e);
+          console.warn("[TabGroupsPage] sessions getRecentlyClosed notice:", e);
         }
       }
 
-      const result: ActiveTabGroup[] = Array.from(groupMap.values()).map((g) => {
-        const groupTabs = activeTabs
-          .filter((t) => t.groupId === g.id)
-          .map((t) => ({
-            id: t.id,
-            title: t.title || t.url || "无标题页",
-            url: t.url || "",
-            favIconUrl: t.favIconUrl,
-          }));
-        return {
-          id: g.id,
-          title: g.title || "未命名标签组",
-          color: g.color || "grey",
-          collapsed: g.collapsed,
-          tabs: groupTabs,
-        };
-      });
-
-      setGroups(result);
+      setGroups(Array.from(groupMap.values()));
     } catch (e) {
-      console.warn("[TabGroupsPage] Failed to fetch tab groups:", e);
+      console.warn("[TabGroupsPage] Failed to fetch all tab groups:", e);
     }
   };
 
@@ -99,8 +147,24 @@ export const TabGroupsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadTabGroups();
+    loadAllTabGroups();
     loadSettings();
+
+    // 实时监听 Chrome Tab Groups 变动事件 (Created, Updated, Removed, Moved)
+    if (typeof chrome !== "undefined" && chrome.tabGroups) {
+      const handleGroupChange = () => {
+        loadAllTabGroups();
+      };
+      chrome.tabGroups.onCreated?.addListener(handleGroupChange);
+      chrome.tabGroups.onUpdated?.addListener(handleGroupChange);
+      chrome.tabGroups.onRemoved?.addListener(handleGroupChange);
+
+      return () => {
+        chrome.tabGroups.onCreated?.removeListener(handleGroupChange);
+        chrome.tabGroups.onUpdated?.removeListener(handleGroupChange);
+        chrome.tabGroups.onRemoved?.removeListener(handleGroupChange);
+      };
+    }
   }, []);
 
   const handleToggleProvider = async (providerKey: string, allowed: boolean) => {
@@ -124,31 +188,48 @@ export const TabGroupsPage: React.FC = () => {
         const groupId = await chrome.tabs.group({ tabIds: [activeTabs[0].id] });
         await chrome.tabGroups.update(groupId, { title: newGroupTitle.trim(), color: selectedColor as any });
         setNewGroupTitle("");
-        loadTabGroups();
+        loadAllTabGroups();
       }
     } catch (e) {
       console.warn("[TabGroupsPage] Create group error:", e);
     }
   };
 
-  const handleUpdateGroup = async (groupId: number) => {
-    if (typeof chrome === "undefined" || !chrome.tabGroups) return;
+  const handleUpdateGroup = async (groupId: string | number) => {
+    if (typeof groupId === "string" || typeof chrome === "undefined" || !chrome.tabGroups) return;
     try {
       await chrome.tabGroups.update(groupId, { title: editTitle, color: editColor as any });
       setEditingGroupId(null);
-      loadTabGroups();
+      loadAllTabGroups();
     } catch (e) {
       console.warn("[TabGroupsPage] Update group error:", e);
     }
   };
 
-  const handleUngroup = async (groupId: number, tabIds: number[]) => {
-    if (typeof chrome === "undefined" || !chrome.tabs.ungroup) return;
+  const handleRestoreClosedGroup = async (group: ActiveTabGroup) => {
+    if (typeof chrome === "undefined" || !chrome.tabs) return;
     try {
-      await chrome.tabs.ungroup(tabIds);
-      loadTabGroups();
+      const validTabs = group.tabs.filter((t) => t.url && t.url.startsWith("http"));
+      if (validTabs.length === 0) return;
+      const win = await chrome.windows.create({ url: validTabs[0].url, focused: true });
+      if (win && win.id) {
+        const tabIds: number[] = [];
+        if (win.tabs?.[0]?.id) tabIds.push(win.tabs[0].id);
+        for (let i = 1; i < validTabs.length; i++) {
+          const created = await chrome.tabs.create({ windowId: win.id, url: validTabs[i].url, active: false });
+          if (created.id) tabIds.push(created.id);
+        }
+        if (chrome.tabGroups && tabIds.length > 0) {
+          const newGroupId = await chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] });
+          await chrome.tabGroups.update(newGroupId, {
+            title: group.title.replace(/\s*\[最近关闭\]$/, ""),
+            color: (group.color as any) || "blue",
+          });
+        }
+      }
+      loadAllTabGroups();
     } catch (e) {
-      console.warn("[TabGroupsPage] Ungroup error:", e);
+      console.warn("[TabGroupsPage] Restore closed group error:", e);
     }
   };
 
@@ -179,12 +260,12 @@ export const TabGroupsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 新建标签组与搜索栏 */}
+      {/* 新建标签组与搜索 Bar */}
       <div className="native-card flex-between" style={{ gap: "8px" }}>
         <input
           type="text"
           className="native-input flex-1"
-          placeholder="搜索标签组或组内网页..."
+          placeholder="搜索 Tab Group 组名或组内网页..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -213,11 +294,11 @@ export const TabGroupsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 标签组列表（带有彩色组容器包裹块 Group Block Container） */}
+      {/* 标签组卡片阵列 (含激活与最近关闭的 Tab Groups) */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {filteredGroups.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
-            当前浏览器视窗中未检测到活跃的 Tab Groups 标签组
+            未检测到任何活跃或最近关闭的 Tab Groups
           </div>
         ) : (
           filteredGroups.map((g) => (
@@ -226,7 +307,7 @@ export const TabGroupsPage: React.FC = () => {
               className="native-card tab-group-container"
               style={{
                 borderLeft: `5px solid var(--primary-color)`,
-                backgroundColor: "rgba(79, 70, 229, 0.03)",
+                backgroundColor: g.isClosed ? "rgba(239, 68, 68, 0.03)" : "rgba(79, 70, 229, 0.03)",
               }}>
               {editingGroupId === g.id ? (
                 <div style={{ display: "flex", gap: "6px", marginBottom: "8px", alignItems: "center" }}>
@@ -258,29 +339,30 @@ export const TabGroupsPage: React.FC = () => {
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <span className={`native-badge native-badge-${g.color}`}>📁 {g.title}</span>
                     <span style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
-                      ({g.tabs.length} 标签页) {g.collapsed ? "[已折叠]" : "[展开]"}
+                      ({g.tabs.length} 标签页) {g.isClosed ? "[已关闭记录]" : g.collapsed ? "[已折叠]" : "[活跃]"}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
-                    <button
-                      className="native-btn native-btn-sm native-btn-subtle"
-                      onClick={() => {
-                        setEditingGroupId(g.id);
-                        setEditTitle(g.title);
-                        setEditColor(g.color);
-                      }}>
-                      ✏️ 改名/颜色
-                    </button>
-                    <button
-                      className="native-btn native-btn-sm native-btn-subtle"
-                      onClick={() => handleUngroup(g.id, g.tabs.map((t) => t.id!).filter(Boolean))}>
-                      🔓 解散组
-                    </button>
+                    {g.isClosed ? (
+                      <button className="native-btn native-btn-sm" onClick={() => handleRestoreClosedGroup(g)}>
+                        □ 一键恢复整个 Tab Group
+                      </button>
+                    ) : (
+                      <button
+                        className="native-btn native-btn-sm native-btn-subtle"
+                        onClick={() => {
+                          setEditingGroupId(g.id);
+                          setEditTitle(g.title);
+                          setEditColor(g.color);
+                        }}>
+                        ✏️ 改名/颜色
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* 组内网页列表容器 */}
+              {/* 组内网页列表 */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "8px" }}>
                 {g.tabs.map((tab, idx) => (
                   <div key={tab.id || idx} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
