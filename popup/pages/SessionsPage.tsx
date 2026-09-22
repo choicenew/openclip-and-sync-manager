@@ -24,6 +24,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
   const [selectedSessionId, setSelectedSessionId] = useState<string>("local_current");
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
 
   // 新建/手动重命名状态
   const [manualTitle, setManualTitle] = useState("");
@@ -46,6 +47,11 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
     s3: true,
     customRest: true,
   });
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -76,7 +82,6 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
     const sessionsList = Array.from(sessionMap.values());
     setSyncedSessionsState(sessionsList);
 
-    // 载入自动保存设置
     setAutoSaveIntervalMinutes(appSettings.sessionAutoSaveIntervalMinutes ?? 30);
     setAutoSaveOnStartup(appSettings.sessionAutoSaveOnStartup ?? true);
     setAutoSaveOnShutdown(appSettings.sessionAutoSaveOnShutdown ?? true);
@@ -110,6 +115,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
     const title = manualTitle.trim() || "手动保存会话快照";
     await autoSaveSessionSnapshot(title);
     setManualTitle("");
+    showToast(`已成功保存会话 Section 快照：「${title}」`);
     await loadData();
   };
 
@@ -128,6 +134,34 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
     await updateSessionLabel(sessionId, editingTitle.trim());
     setIsEditingTitle(false);
     await loadData();
+  };
+
+  const handleSaveTabGroupFromSession = async (groupTitle: string, groupColor: string, tabs: SyncTab[]) => {
+    if (typeof chrome === "undefined") return;
+    try {
+      const existing = await new Promise<any[]>((resolve) => {
+        chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
+          resolve(res.openclip_permanently_saved_groups || []),
+        );
+      });
+
+      const newAsset = {
+        id: `saved_asset_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        title: groupTitle,
+        color: groupColor || "blue",
+        collapsed: true,
+        isClosed: true,
+        sourceLabel: "从会话单独提取",
+        tabs: tabs.map((t) => ({ title: t.title || t.url || "", url: t.url || "", favIconUrl: t.favIconUrl })),
+      };
+
+      await chrome.storage.local.set({
+        openclip_permanently_saved_groups: [newAsset, ...existing],
+      });
+      showToast(`已将标签组「${groupTitle}」单独保存到 Tab Groups 资产库！`);
+    } catch (e) {
+      console.warn("[SessionsPage] Save tab group from session error:", e);
+    }
   };
 
   const handleToggleAutoSaveRule = async (key: "interval" | "startup" | "shutdown", value: any) => {
@@ -159,14 +193,12 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
     setAllowedProviders((prev) => ({ ...prev, [providerKey]: allowed }));
   };
 
-  // 还原选中 Section
   const handleRestoreSession = async (tabs: SyncTab[], inNewWindow = true) => {
-    await openSessionTabs(tabs, inNewWindow);
+    await openSessionTabs(tabs, inNewWindow, lazyLoading);
   };
 
   const selectedSession = syncedSessions.find((s) => s.id === selectedSessionId) || syncedSessions[0];
 
-  // 整理选中 Section 中的 Tab Groups 编组结构
   const groupTabsByGroup = (tabs: SyncTab[]) => {
     const groupsMap = new Map<string, { title: string; color: string; collapsed: boolean; tabs: SyncTab[] }>();
     const ungroupedTabs: SyncTab[] = [];
@@ -203,6 +235,12 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", height: "100%" }}>
+      {toastMsg && (
+        <div className="native-card" style={{ backgroundColor: "var(--primary-color)", color: "#fff", padding: "6px 12px", fontSize: "11px" }}>
+          🔔 {toastMsg}
+        </div>
+      )}
+
       {/* 控流面板 B: 【数据视角】会话标签组允许同步走哪些云节点 */}
       <div className="native-card" style={{ borderColor: "var(--primary-color)", backgroundColor: "rgba(79, 70, 229, 0.02)" }}>
         <div style={{ fontWeight: 600, fontSize: "12px", marginBottom: "4px" }}>
@@ -274,7 +312,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
 
       {/* TSM 左右双栏工作台布局 (Left: Timeline List, Right: Session Detail) */}
       <div style={{ display: "flex", gap: "12px", flex: 1, minHeight: 0 }}>
-        {/* 左侧：时间轴 Section 列表 (Section Sidebar) */}
+        {/* 左侧：时间轴 Section 列表 */}
         <div
           className="native-card"
           style={{ width: "260px", display: "flex", flexDirection: "column", gap: "8px", overflow: "hidden" }}>
@@ -285,7 +323,6 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
             </button>
           </div>
 
-          {/* 新建/手动快照保存栏 */}
           <div style={{ display: "flex", gap: "4px" }}>
             <input
               type="text"
@@ -300,7 +337,6 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
             </button>
           </div>
 
-          {/* 可滚动的时间轴卡片列表 */}
           <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
             {visibleSessions.map((session) => {
               const isSelected = session.id === selectedSessionId;
@@ -335,11 +371,10 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
           </div>
         </div>
 
-        {/* 右侧：选中会话的树形明细面板 (Selected Session Workbench) */}
+        {/* 右侧：选中会话的树形明细面板 */}
         <div className="native-card" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", overflow: "hidden" }}>
           {selectedSession ? (
             <>
-              {/* 头部：标题与主控操作栏 */}
               <div className="flex-between" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden" }}>
                   {isEditingTitle ? (
@@ -395,14 +430,13 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                 </div>
               </div>
 
-              {/* 树形编组树与网页列表 */}
               <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
                 {(() => {
                   const { groupsMap, ungroupedTabs } = groupTabsByGroup(selectedSession.tabs);
 
                   return (
                     <>
-                      {/* 嵌套编组的 Tab Group 块容器 */}
+                      {/* 嵌套编组的 Tab Group 块容器 (带 [💾 保存 Tab Group] 按钮) */}
                       {groupsMap.map((g, gIdx) => (
                         <div
                           key={`group_${gIdx}`}
@@ -412,7 +446,11 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                             <span className={`native-badge native-badge-${g.color}`}>
                               📁 {g.title} ({g.tabs.length} 标签)
                             </span>
-                            <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>Tab Group 专属组容器</span>
+                            <button
+                              className="native-btn native-btn-sm"
+                              onClick={() => handleSaveTabGroupFromSession(g.title, g.color, g.tabs)}>
+                              💾 保存此 Tab Group 到资产库
+                            </button>
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "8px" }}>
                             {g.tabs.map((t, tIdx) => (
@@ -432,7 +470,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                         </div>
                       ))}
 
-                      {/* 未编组的普通 Tab 列表 */}
+                      {/* 未编组普通 Tab 列表 */}
                       {ungroupedTabs.map((t, uIdx) => (
                         <div key={`ungrouped_${uIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>

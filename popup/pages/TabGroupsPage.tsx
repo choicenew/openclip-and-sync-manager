@@ -13,13 +13,17 @@ export interface ActiveTabGroup {
 }
 
 export const TabGroupsPage: React.FC = () => {
-  const [groups, setGroups] = useState<ActiveTabGroup[]>([]);
+  const [activeGroups, setActiveGroups] = useState<ActiveTabGroup[]>([]);
+  const [savedGroups, setSavedGroups] = useState<ActiveTabGroup[]>([]);
+  const [openTabs, setOpenTabs] = useState<chrome.tabs.Tab[]>([]);
+  const [selectedTabIds, setSelectedTabIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [selectedColor, setSelectedColor] = useState<string>("blue");
   const [newGroupTitle, setNewGroupTitle] = useState("");
   const [editingGroupId, setEditingGroupId] = useState<string | number | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editColor, setEditColor] = useState("blue");
+  const [toastMsg, setToastMsg] = useState("");
 
   // 数据模态通道许可：Tab Groups 允许走哪些云节点
   const [allowedProviders, setAllowedProviders] = useState({
@@ -32,150 +36,65 @@ export const TabGroupsPage: React.FC = () => {
     customRest: true,
   });
 
-  const loadAllTabGroups = async () => {
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
+
+  const loadAllData = async () => {
     if (typeof chrome === "undefined") return;
     try {
-      const groupMap = new Map<string | number, ActiveTabGroup>();
+      // 1. 读取当前视窗正打开的所有网页标签
+      let allTabs: chrome.tabs.Tab[] = [];
+      try {
+        allTabs = await chrome.tabs.query({});
+        setOpenTabs(allTabs);
+      } catch (e) {
+        console.warn("[TabGroupsPage] Tabs query notice:", e);
+      }
 
-      // 1. 调取官方原生 chrome.tabGroups.query({}) 拿当前打开的活跃组
+      // 2. 读取当前活跃的 Tab Groups
+      const activeMap = new Map<number, ActiveTabGroup>();
       if (chrome.tabGroups && chrome.tabGroups.query) {
         try {
-          const activeGroups = await chrome.tabGroups.query({});
-          for (const ag of activeGroups) {
-            let groupTabs: { id?: number; title: string; url: string; favIconUrl?: string }[] = [];
-            if (chrome.tabs && chrome.tabs.query) {
-              try {
-                const tabs = await chrome.tabs.query({ groupId: ag.id });
-                groupTabs = tabs.map((t) => ({
+          const liveGroups = await chrome.tabGroups.query({});
+          for (const g of liveGroups) {
+            if (g.id !== undefined && g.id !== -1) {
+              const groupTabs = allTabs
+                .filter((t) => t.groupId === g.id)
+                .map((t) => ({
                   id: t.id,
                   title: t.title || t.url || "无标题页",
                   url: t.url || "",
                   favIconUrl: t.favIconUrl,
                 }));
-              } catch (e) {}
-            }
 
-            groupMap.set(ag.id, {
-              id: ag.id,
-              title: ag.title || `Tab Group #${ag.id}`,
-              color: ag.color || "blue",
-              collapsed: !!ag.collapsed,
-              isClosed: false,
-              sourceLabel: "当前视窗活跃",
-              tabs: groupTabs,
-            });
+              activeMap.set(g.id, {
+                id: g.id,
+                title: g.title || `Tab Group #${g.id}`,
+                color: g.color || "blue",
+                collapsed: !!g.collapsed,
+                isClosed: false,
+                sourceLabel: "当前活跃",
+                tabs: groupTabs,
+              });
+            }
           }
         } catch (e) {
           console.warn("[TabGroupsPage] tabGroups.query notice:", e);
         }
       }
+      setActiveGroups(Array.from(activeMap.values()));
 
-      // 2. 调取 Chrome 官方 Saved Tab Groups API (chrome.tabGroups.getSavedGroups)，读取 㗊 栏保存组
-      if (chrome.tabGroups && (chrome.tabGroups as any).getSavedGroups) {
-        try {
-          const savedGroups = await (chrome.tabGroups as any).getSavedGroups({});
-          if (Array.isArray(savedGroups)) {
-            for (const sg of savedGroups) {
-              const key = sg.savedGroupId || `saved_${sg.title}`;
-              if (!groupMap.has(key)) {
-                const groupTabs = (sg.urls || sg.tabs || []).map((t: any) => ({
-                  title: typeof t === "string" ? t : t.title || t.url || "已保存网页",
-                  url: typeof t === "string" ? t : t.url || "",
-                  favIconUrl: t.favIconUrl,
-                }));
-                groupMap.set(key, {
-                  id: key,
-                  title: sg.title || "已保存 Tab Group",
-                  color: sg.color || "blue",
-                  collapsed: true,
-                  isClosed: true,
-                  sourceLabel: "Chrome 㗊 栏保存组",
-                  tabs: groupTabs,
-                });
-              }
-            }
-          }
-        } catch (e) {
-          console.warn("[TabGroupsPage] tabGroups.getSavedGroups notice:", e);
-        }
-      }
-
-      // 3. 调取官方 chrome.sessions.getDevices() 穿透获取登录同账号的多端设备 Session 组
-      if (chrome.sessions && chrome.sessions.getDevices) {
-        try {
-          const devices = await chrome.sessions.getDevices({});
-          if (Array.isArray(devices)) {
-            for (const dev of devices) {
-              for (const session of dev.sessions || []) {
-                if (session.window && session.window.tabs) {
-                  for (const tab of session.window.tabs) {
-                    if (tab.groupTitle) {
-                      const devGroupId = `dev_group_${dev.deviceName}_${tab.groupTitle}`;
-                      if (!groupMap.has(devGroupId)) {
-                        const devGroupTabs = session.window.tabs
-                          .filter((t: any) => t.groupTitle === tab.groupTitle)
-                          .map((t: any) => ({
-                            title: t.title || t.url || "多端网页",
-                            url: t.url || "",
-                            favIconUrl: t.favIconUrl,
-                          }));
-                        groupMap.set(devGroupId, {
-                          id: devGroupId,
-                          title: tab.groupTitle,
-                          color: tab.groupColor || "purple",
-                          collapsed: true,
-                          isClosed: true,
-                          sourceLabel: `来自设备: ${dev.deviceName || "从设备"}`,
-                          tabs: devGroupTabs,
-                        });
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch (e) {
-          console.warn("[TabGroupsPage] sessions.getDevices notice:", e);
-        }
-      }
-
-      // 4. 读取从已保存会话 / 历史 Section 快照里提取的 Tab Groups
-      try {
-        const syncedSessions = await getSyncedSessions();
-        for (const session of syncedSessions) {
-          if (!session || !session.tabs) continue;
-          for (const tab of session.tabs) {
-            if (tab.groupTitle) {
-              const sessionGroupId = `saved_group_${session.id}_${tab.groupTitle}`;
-              if (!groupMap.has(sessionGroupId)) {
-                const groupTabs = session.tabs
-                  .filter((t) => t.groupTitle === tab.groupTitle)
-                  .map((t) => ({
-                    title: t.title || t.url || "已保存标签页",
-                    url: t.url || "",
-                    favIconUrl: t.favIconUrl,
-                  }));
-                groupMap.set(sessionGroupId, {
-                  id: sessionGroupId,
-                  title: tab.groupTitle,
-                  color: tab.groupColor || "blue",
-                  collapsed: true,
-                  isClosed: true,
-                  sourceLabel: `来自会话: ${session.label || session.deviceName}`,
-                  tabs: groupTabs,
-                });
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("[TabGroupsPage] Synced sessions tabGroups extraction notice:", e);
-      }
-
-      setGroups(Array.from(groupMap.values()));
+      // 3. 读取已手动保存固化的永久 Tab Groups 资产库
+      const savedMapData: ActiveTabGroup[] = await new Promise((resolve) => {
+        chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
+          resolve(res.openclip_permanently_saved_groups || []),
+        );
+      });
+      setSavedGroups(savedMapData);
     } catch (e) {
-      console.warn("[TabGroupsPage] Failed to fetch all tab groups:", e);
+      console.warn("[TabGroupsPage] Failed to load data:", e);
     }
   };
 
@@ -194,20 +113,33 @@ export const TabGroupsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadAllTabGroups();
+    loadAllData();
     loadSettings();
 
-    // 实时监听 Chrome 原生 Tab Groups 事件
-    if (typeof chrome !== "undefined" && chrome.tabGroups) {
-      const handleGroupChange = () => loadAllTabGroups();
-      chrome.tabGroups.onCreated?.addListener(handleGroupChange);
-      chrome.tabGroups.onUpdated?.addListener(handleGroupChange);
-      chrome.tabGroups.onRemoved?.addListener(handleGroupChange);
+    if (typeof chrome !== "undefined") {
+      const handleStorageChange = (changes: any, areaName: string) => {
+        if (areaName === "local" && (changes.openclip_live_tab_groups || changes.openclip_permanently_saved_groups)) {
+          loadAllData();
+        }
+      };
+      chrome.storage.onChanged.addListener(handleStorageChange);
+
+      if (chrome.tabGroups) {
+        const handleGroupChange = () => loadAllData();
+        chrome.tabGroups.onCreated?.addListener(handleGroupChange);
+        chrome.tabGroups.onUpdated?.addListener(handleGroupChange);
+        chrome.tabGroups.onRemoved?.addListener(handleGroupChange);
+
+        return () => {
+          chrome.storage.onChanged.removeListener(handleStorageChange);
+          chrome.tabGroups.onCreated?.removeListener(handleGroupChange);
+          chrome.tabGroups.onUpdated?.removeListener(handleGroupChange);
+          chrome.tabGroups.onRemoved?.removeListener(handleGroupChange);
+        };
+      }
 
       return () => {
-        chrome.tabGroups.onCreated?.removeListener(handleGroupChange);
-        chrome.tabGroups.onUpdated?.removeListener(handleGroupChange);
-        chrome.tabGroups.onRemoved?.removeListener(handleGroupChange);
+        chrome.storage.onChanged.removeListener(handleStorageChange);
       };
     }
   }, []);
@@ -225,37 +157,102 @@ export const TabGroupsPage: React.FC = () => {
     setAllowedProviders((prev) => ({ ...prev, [providerKey]: allowed }));
   };
 
-  const handleCreateGroup = async () => {
-    if (!newGroupTitle.trim() || typeof chrome === "undefined" || !chrome.tabs) return;
+  // 核心功能：【💾 手动保存此 Tab Group 到永久资产库】
+  const handleSaveTabGroupToAsset = async (group: ActiveTabGroup) => {
+    if (typeof chrome === "undefined") return;
     try {
-      const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (activeTabs.length > 0 && activeTabs[0].id) {
-        const groupId = await chrome.tabs.group({ tabIds: [activeTabs[0].id] });
-        await chrome.tabGroups.update(groupId, { title: newGroupTitle.trim(), color: selectedColor as any });
-        setNewGroupTitle("");
-        loadAllTabGroups();
+      const existing: ActiveTabGroup[] = await new Promise((resolve) => {
+        chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
+          resolve(res.openclip_permanently_saved_groups || []),
+        );
+      });
+
+      const newAsset: ActiveTabGroup = {
+        ...group,
+        id: `saved_asset_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        isClosed: true,
+        sourceLabel: "已保存资产",
+      };
+
+      const updated = [newAsset, ...existing];
+      await chrome.storage.local.set({ openclip_permanently_saved_groups: updated });
+      showToast(`已成功将「${group.title}」保存至 Tab Group 资产库！`);
+      loadAllData();
+    } catch (e) {
+      console.warn("[TabGroupsPage] Save asset error:", e);
+    }
+  };
+
+  // 核心功能：【删除已保存的 Tab Group 资产】
+  const handleDeleteSavedAsset = async (assetId: string | number) => {
+    if (typeof chrome === "undefined") return;
+    try {
+      const existing: ActiveTabGroup[] = await new Promise((resolve) => {
+        chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
+          resolve(res.openclip_permanently_saved_groups || []),
+        );
+      });
+      const updated = existing.filter((item) => item.id !== assetId);
+      await chrome.storage.local.set({ openclip_permanently_saved_groups: updated });
+      showToast("已删除该 Tab Group 资产记录");
+      loadAllData();
+    } catch (e) {
+      console.warn("[TabGroupsPage] Delete asset error:", e);
+    }
+  };
+
+  // 核心功能：【➕ 勾选当前网页手动保存为新 Tab Group】
+  const handleGroupSelectedOpenTabs = async () => {
+    if (selectedTabIds.size === 0 || typeof chrome === "undefined" || !chrome.tabs) return;
+    try {
+      const tabIdsArray = Array.from(selectedTabIds);
+      const title = newGroupTitle.trim() || "自定义 Tab Group";
+
+      // 1. 在 Chrome 中创建原生的 Tab Group
+      const groupId = await chrome.tabs.group({ tabIds: tabIdsArray as [number, ...number[]] });
+      if (chrome.tabGroups) {
+        await chrome.tabGroups.update(groupId, { title, color: selectedColor as any });
       }
+
+      // 2. 同时将其保存到资产库
+      const memberTabs = openTabs
+        .filter((t) => selectedTabIds.has(t.id!))
+        .map((t) => ({ title: t.title || t.url || "", url: t.url || "", favIconUrl: t.favIconUrl }));
+
+      const newAsset: ActiveTabGroup = {
+        id: `saved_asset_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        title,
+        color: selectedColor,
+        collapsed: false,
+        isClosed: true,
+        sourceLabel: "已保存资产",
+        tabs: memberTabs,
+      };
+
+      const existing: ActiveTabGroup[] = await new Promise((resolve) => {
+        chrome.storage.local.get("openclip_permanently_saved_groups", (res) =>
+          resolve(res.openclip_permanently_saved_groups || []),
+        );
+      });
+
+      await chrome.storage.local.set({ openclip_permanently_saved_groups: [newAsset, ...existing] });
+
+      setNewGroupTitle("");
+      setSelectedTabIds(new Set());
+      showToast(`已将 ${tabIdsArray.length} 个网页打包创建并保存为「${title}」！`);
+      loadAllData();
     } catch (e) {
-      console.warn("[TabGroupsPage] Create group error:", e);
+      console.warn("[TabGroupsPage] Group selected tabs error:", e);
     }
   };
 
-  const handleUpdateGroup = async (groupId: string | number) => {
-    if (typeof groupId === "string" || typeof chrome === "undefined" || !chrome.tabGroups) return;
-    try {
-      await chrome.tabGroups.update(groupId, { title: editTitle, color: editColor as any });
-      setEditingGroupId(null);
-      loadAllTabGroups();
-    } catch (e) {
-      console.warn("[TabGroupsPage] Update group error:", e);
-    }
-  };
-
-  const handleRestoreClosedGroup = async (group: ActiveTabGroup) => {
+  // 核心功能：【🚀 一键在新窗口恢复整个 Tab Group】
+  const handleRestoreGroup = async (group: ActiveTabGroup) => {
     if (typeof chrome === "undefined" || !chrome.tabs) return;
     try {
       const validTabs = group.tabs.filter((t) => t.url && t.url.startsWith("http"));
       if (validTabs.length === 0) return;
+
       const win = await chrome.windows.create({ url: validTabs[0].url, focused: true });
       if (win && win.id) {
         const tabIds: number[] = [];
@@ -267,26 +264,48 @@ export const TabGroupsPage: React.FC = () => {
         if (chrome.tabGroups && tabIds.length > 0) {
           const newGroupId = await chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] });
           await chrome.tabGroups.update(newGroupId, {
-            title: group.title.replace(/\s*\[已保存\]$/, ""),
+            title: group.title,
             color: (group.color as any) || "blue",
           });
         }
       }
-      loadAllTabGroups();
+      showToast(`已在新窗口完美还原 Tab Group：「${group.title}」！`);
+      loadAllData();
     } catch (e) {
-      console.warn("[TabGroupsPage] Restore closed group error:", e);
+      console.warn("[TabGroupsPage] Restore group error:", e);
+    }
+  };
+
+  const handleUpdateGroup = async (groupId: string | number) => {
+    if (typeof groupId === "string" || typeof chrome === "undefined" || !chrome.tabGroups) return;
+    try {
+      await chrome.tabGroups.update(groupId, { title: editTitle, color: editColor as any });
+      setEditingGroupId(null);
+      loadAllData();
+    } catch (e) {
+      console.warn("[TabGroupsPage] Update group error:", e);
     }
   };
 
   const colors = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
 
-  const filteredGroups = groups.filter(
+  const filteredActive = activeGroups.filter(
+    (g) => g.title.toLowerCase().includes(search.toLowerCase()) || g.tabs.some((t) => t.title.toLowerCase().includes(search.toLowerCase())),
+  );
+
+  const filteredSaved = savedGroups.filter(
     (g) => g.title.toLowerCase().includes(search.toLowerCase()) || g.tabs.some((t) => t.title.toLowerCase().includes(search.toLowerCase())),
   );
 
   return (
     <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px", height: "100%", overflowY: "auto" }}>
-      {/* 控流面板 B: 【数据视角】Tab Groups 标签组允许同步走哪些云节点 */}
+      {toastMsg && (
+        <div className="native-card" style={{ backgroundColor: "var(--primary-color)", color: "#fff", padding: "6px 12px", fontSize: "11px" }}>
+          🔔 {toastMsg}
+        </div>
+      )}
+
+      {/* 控流面板 B: 【数据视角】Tab Groups 允许同步到的云节点 */}
       <div className="native-card" style={{ borderColor: "var(--primary-color)", backgroundColor: "rgba(79, 70, 229, 0.02)" }}>
         <div style={{ fontWeight: 600, fontSize: "12px", marginBottom: "4px" }}>
           📡 【数据选途径】Tab Groups 标签组允许同步到的云端 Backend 节点：
@@ -305,131 +324,167 @@ export const TabGroupsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 新建标签组与搜索 Bar */}
-      <div className="native-card flex-between" style={{ gap: "8px" }}>
+      {/* 搜索栏 */}
+      <div className="native-card flex-between">
         <input
           type="text"
           className="native-input flex-1"
-          placeholder="搜索 Tab Group 组名或组内网页..."
+          placeholder="搜索组名或组内网页..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <input
-            type="text"
-            className="native-input"
-            style={{ width: "120px" }}
-            placeholder="新建组名..."
-            value={newGroupTitle}
-            onChange={(e) => setNewGroupTitle(e.target.value)}
-          />
-          <select
-            className="native-select"
-            value={selectedColor}
-            onChange={(e) => setSelectedColor(e.target.value)}>
-            {colors.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <button className="native-btn native-btn-sm" onClick={handleCreateGroup}>
-            + 编组当前页
-          </button>
-        </div>
+        <button className="native-btn native-btn-sm native-btn-subtle" onClick={loadAllData} style={{ marginLeft: "8px" }}>
+          🔄 刷新数据
+        </button>
       </div>
 
-      {/* 标签组卡片阵列 (双轨制：当前视窗活跃组 + 多端已保存/同步资产组) */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {filteredGroups.length === 0 ? (
-          <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
-            未检测到任何活跃、已保存或多端同步的 Tab Groups
+      {/* 轨 1：当前视窗正活跃打开的 Tab Groups (配有 [💾 保存此 Tab Group] 按钮) */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div className="flex-between">
+          <span style={{ fontWeight: 700, fontSize: "12px" }}>🟢 当前视窗活跃中的 Tab Groups ({filteredActive.length})</span>
+          <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>正在浏览器标签栏排开的组</span>
+        </div>
+
+        {filteredActive.length === 0 ? (
+          <div style={{ fontSize: "11px", color: "var(--text-dimmed)", padding: "10px", textAlign: "center" }}>
+            当前视窗暂无活动 Tab Group (可在下方选择网页手动新建组与保存)
           </div>
         ) : (
-          filteredGroups.map((g) => (
-            <div
-              key={g.id}
-              className="native-card tab-group-container"
-              style={{
-                borderLeft: `5px solid var(--primary-color)`,
-                backgroundColor: g.isClosed ? "rgba(239, 68, 68, 0.03)" : "rgba(79, 70, 229, 0.03)",
-              }}>
+          filteredActive.map((g) => (
+            <div key={g.id} className="native-card-subtle tab-group-container" style={{ borderLeft: "5px solid var(--primary-color)" }}>
               {editingGroupId === g.id ? (
-                <div style={{ display: "flex", gap: "6px", marginBottom: "8px", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    className="native-input flex-1"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                  />
-                  <select
-                    className="native-select"
-                    value={editColor}
-                    onChange={(e) => setEditColor(e.target.value)}>
-                    {colors.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
+                <div style={{ display: "flex", gap: "6px", marginBottom: "6px" }}>
+                  <input type="text" className="native-input flex-1" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  <select className="native-select" value={editColor} onChange={(e) => setEditColor(e.target.value)}>
+                    {colors.map((c) => (<option key={c} value={c}>{c}</option>))}
                   </select>
-                  <button className="native-btn native-btn-sm" onClick={() => handleUpdateGroup(g.id)}>
-                    保存
-                  </button>
-                  <button className="native-btn native-btn-sm native-btn-subtle" onClick={() => setEditingGroupId(null)}>
-                    取消
-                  </button>
+                  <button className="native-btn native-btn-sm" onClick={() => handleUpdateGroup(g.id)}>保存</button>
+                  <button className="native-btn native-btn-sm native-btn-subtle" onClick={() => setEditingGroupId(null)}>取消</button>
                 </div>
               ) : (
                 <div className="flex-between" style={{ marginBottom: "6px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <span className={`native-badge native-badge-${g.color}`}>📁 {g.title}</span>
-                    <span style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
-                      ({g.tabs.length} 标签页) [{g.sourceLabel || "活跃"}]
-                    </span>
+                    <span style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>({g.tabs.length} 标签)</span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
-                    {g.isClosed ? (
-                      <button className="native-btn native-btn-sm" onClick={() => handleRestoreClosedGroup(g)}>
-                        □ 一键恢复整个 Tab Group
-                      </button>
-                    ) : (
-                      <button
-                        className="native-btn native-btn-sm native-btn-subtle"
-                        onClick={() => {
-                          setEditingGroupId(g.id);
-                          setEditTitle(g.title);
-                          setEditColor(g.color);
-                        }}>
-                        ✏️ 改名/颜色
-                      </button>
-                    )}
+                    <button className="native-btn native-btn-sm" onClick={() => handleSaveTabGroupToAsset(g)}>
+                      💾 保存此 Tab Group
+                    </button>
+                    <button
+                      className="native-btn native-btn-sm native-btn-subtle"
+                      onClick={() => { setEditingGroupId(g.id); setEditTitle(g.title); setEditColor(g.color); }}>
+                      ✏️ 改名/颜色
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* 组内网页列表容器 */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "8px" }}>
                 {g.tabs.map((tab, idx) => (
-                  <div key={tab.id || idx} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
-                      {tab.favIconUrl ? (
-                        <img src={tab.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} />
-                      ) : (
-                        <span>🌐</span>
-                      )}
-                      <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {tab.title}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
-                      {tab.url.slice(0, 35)}...
+                  <div key={tab.id || idx} className="native-card-subtle flex-between" style={{ padding: "3px 6px", fontSize: "11px" }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {tab.title}
                     </span>
+                    <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>{tab.url.slice(0, 30)}...</span>
                   </div>
                 ))}
               </div>
             </div>
           ))
         )}
+      </div>
+
+      {/* 轨 2：全量固化与已保存的 Tab Groups 资产库 (网页关闭后永不丢失，可随时恢复) */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div className="flex-between">
+          <span style={{ fontWeight: 700, fontSize: "12px", color: "var(--primary-color)" }}>
+            💾 已保存的 Tab Groups 资产库 ({filteredSaved.length})
+          </span>
+          <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>关闭网页后永不丢失，随时恢复</span>
+        </div>
+
+        {filteredSaved.length === 0 ? (
+          <div style={{ fontSize: "11px", color: "var(--text-dimmed)", padding: "10px", textAlign: "center" }}>
+            暂无已保存的 Tab Group 资产 (可在上方对活动组点击「💾 保存此 Tab Group」)
+          </div>
+        ) : (
+          filteredSaved.map((g) => (
+            <div key={g.id} className="native-card-subtle tab-group-container" style={{ borderLeft: "5px solid #10b981", backgroundColor: "rgba(16, 185, 129, 0.03)" }}>
+              <div className="flex-between" style={{ marginBottom: "6px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span className={`native-badge native-badge-${g.color}`}>📁 {g.title}</span>
+                  <span style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>({g.tabs.length} 标签页)</span>
+                </div>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button className="native-btn native-btn-sm" onClick={() => handleRestoreGroup(g)}>
+                    🚀 在新窗口一键还原 Tab Group
+                  </button>
+                  <button className="native-btn native-btn-sm" style={{ backgroundColor: "#ef4444" }} onClick={() => handleDeleteSavedAsset(g.id)}>
+                    🗑️ 删除
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "8px" }}>
+                {g.tabs.map((tab, idx) => (
+                  <div key={idx} className="native-card-subtle flex-between" style={{ padding: "3px 6px", fontSize: "11px" }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tab.title}</span>
+                    <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>{tab.url.slice(0, 30)}...</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* 轨 3：当前打开网页一键手动勾选新建 & 保存为新 Tab Group 工作台 */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div className="flex-between">
+          <span style={{ fontWeight: 700, fontSize: "12px" }}>➕ 勾选当前已打开网页，直接打组并保存</span>
+          <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>选择下方任意网页创建新 Tab Group</span>
+        </div>
+
+        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+          <input
+            type="text"
+            className="native-input flex-1"
+            placeholder="输入新 Tab Group 名称..."
+            value={newGroupTitle}
+            onChange={(e) => setNewGroupTitle(e.target.value)}
+          />
+          <select className="native-select" value={selectedColor} onChange={(e) => setSelectedColor(e.target.value)}>
+            {colors.map((c) => (<option key={c} value={c}>{c}</option>))}
+          </select>
+          <button
+            className="native-btn native-btn-sm"
+            disabled={selectedTabIds.size === 0}
+            onClick={handleGroupSelectedOpenTabs}>
+            💾 打包建组并保存 ({selectedTabIds.size})
+          </button>
+        </div>
+
+        <div style={{ maxHeight: "150px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
+          {openTabs.map((t) => (
+            <label key={t.id} className="native-card-subtle flex-between" style={{ padding: "4px 8px", cursor: "pointer", fontSize: "11px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                <input
+                  type="checkbox"
+                  checked={selectedTabIds.has(t.id!)}
+                  onChange={(e) => {
+                    const next = new Set(selectedTabIds);
+                    if (e.target.checked) next.add(t.id!);
+                    else next.delete(t.id!);
+                    setSelectedTabIds(next);
+                  }}
+                />
+                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
+              </div>
+              <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>{t.url.slice(0, 25)}...</span>
+            </label>
+          ))}
+        </div>
       </div>
     </div>
   );
