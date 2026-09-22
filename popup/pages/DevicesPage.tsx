@@ -99,7 +99,7 @@ export const DevicesPage: React.FC = () => {
   const updateDeviceModalitySource = async (
     targetDeviceId: string,
     targetDeviceName: string,
-    modality: "clipboard" | "bookmarks" | "history" | "sessions" | "extensions",
+    modality: "clipboard" | "bookmarks" | "history" | "sessions" | "tabGroups" | "extensions",
     sourceTarget: ModalitySourceTarget,
   ) => {
     const currentRules = { ...(masterState.deviceRules || {}) };
@@ -112,6 +112,7 @@ export const DevicesPage: React.FC = () => {
         bookmarks: "all",
         history: "all",
         sessions: "all",
+        tabGroups: "all",
         extensions: "all",
       },
     };
@@ -149,6 +150,7 @@ export const DevicesPage: React.FC = () => {
         bookmarks: "all",
         history: "all",
         sessions: "all",
+        tabGroups: "all",
         extensions: "all",
       },
     };
@@ -179,6 +181,7 @@ export const DevicesPage: React.FC = () => {
         bookmarks: "all",
         history: "all",
         sessions: "all",
+        tabGroups: "all",
         extensions: "all",
       },
     };
@@ -329,7 +332,7 @@ export const DevicesPage: React.FC = () => {
             deviceId: dev.deviceId,
             deviceName: dev.deviceName,
             enabled: true,
-            sources: { clipboard: "all", bookmarks: "all", history: "all", sessions: "all", extensions: "all" },
+            sources: { clipboard: "all", bookmarks: "all", history: "all", sessions: "all", tabGroups: "all", extensions: "all" },
           };
 
           return (
@@ -371,9 +374,9 @@ export const DevicesPage: React.FC = () => {
                 />
               </div>
 
-              {/* 5 大模态数据源拉取选择器 */}
+              {/* 6 大模态数据源拉取选择器 (含 Tab Groups) */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "6px", fontSize: "11px" }}>
-                {(["clipboard", "bookmarks", "history", "sessions", "extensions"] as const).map((mod) => (
+                {(["clipboard", "bookmarks", "history", "sessions", "tabGroups", "extensions"] as const).map((mod) => (
                   <div key={mod} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                     <span style={{ fontSize: "10px", color: "var(--text-dimmed)", textTransform: "capitalize" }}>{mod} 源:</span>
                     <select
