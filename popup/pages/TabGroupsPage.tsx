@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getSyncedSessions } from "~storage/syncedSessions";
 import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
 
 export interface ActiveTabGroup {
@@ -7,6 +8,7 @@ export interface ActiveTabGroup {
   color: string;
   collapsed: boolean;
   isClosed?: boolean;
+  sourceLabel?: string;
   tabs: { id?: number; title: string; url: string; favIconUrl?: string }[];
 }
 
@@ -35,16 +37,17 @@ export const TabGroupsPage: React.FC = () => {
     try {
       const groupMap = new Map<string | number, ActiveTabGroup>();
 
-      // 1. 查询当前打开的所有活跃网页与标签组 (包含跨窗口与全量组)
-      const allTabs = await chrome.tabs.query({});
+      // 1. 查询当前窗口及所有窗口的活跃标签页与 Tab Groups
+      let allTabs: chrome.tabs.Tab[] = [];
       let activeGroups: chrome.tabGroups.TabGroup[] = [];
 
-      if (chrome.tabGroups) {
-        try {
+      try {
+        allTabs = await chrome.tabs.query({});
+        if (chrome.tabGroups) {
           activeGroups = await chrome.tabGroups.query({});
-        } catch (e) {
-          console.warn("[TabGroupsPage] tabGroups query notice:", e);
         }
+      } catch (e) {
+        console.warn("[TabGroupsPage] Tabs query notice:", e);
       }
 
       // 按 groupId 构建组基础结构
@@ -56,6 +59,7 @@ export const TabGroupsPage: React.FC = () => {
             color: g.color || "grey",
             collapsed: !!g.collapsed,
             isClosed: false,
+            sourceLabel: "当前活跃",
             tabs: [],
           });
         }
@@ -66,7 +70,6 @@ export const TabGroupsPage: React.FC = () => {
         if (t.groupId !== undefined && t.groupId !== -1) {
           let existing = groupMap.get(t.groupId);
           if (!existing && chrome.tabGroups) {
-            // 保底防护：直接通过 t.groupId 调用 chrome.tabGroups.get 单独获取
             try {
               const fetchedGroup = await chrome.tabGroups.get(t.groupId);
               if (fetchedGroup) {
@@ -76,6 +79,7 @@ export const TabGroupsPage: React.FC = () => {
                   color: fetchedGroup.color || "grey",
                   collapsed: !!fetchedGroup.collapsed,
                   isClosed: false,
+                  sourceLabel: "当前活跃",
                   tabs: [],
                 };
                 groupMap.set(fetchedGroup.id, existing);
@@ -96,7 +100,7 @@ export const TabGroupsPage: React.FC = () => {
         }
       }
 
-      // 2. 调用 chrome.sessions.getRecentlyClosed 读取被关闭/归档的 Tab Groups
+      // 2. 调用 chrome.sessions.getRecentlyClosed 读取最近关闭/归档的 Tab Groups
       if (chrome.sessions && chrome.sessions.getRecentlyClosed) {
         try {
           const recentlyClosed = await chrome.sessions.getRecentlyClosed({});
@@ -112,10 +116,11 @@ export const TabGroupsPage: React.FC = () => {
                 }));
                 groupMap.set(closedGroupId, {
                   id: closedGroupId,
-                  title: `${closedG.title || "已关闭标签组"} [最近关闭]`,
+                  title: `${closedG.title || "已关闭标签组"}`,
                   color: closedG.color || "grey",
                   collapsed: true,
                   isClosed: true,
+                  sourceLabel: "最近关闭",
                   tabs: closedTabs,
                 });
               }
@@ -124,6 +129,39 @@ export const TabGroupsPage: React.FC = () => {
         } catch (e) {
           console.warn("[TabGroupsPage] sessions getRecentlyClosed notice:", e);
         }
+      }
+
+      // 3. 聚合提取 Synced Sessions / 历史 Section 快照中包含的 Tab Groups
+      try {
+        const syncedSessions = await getSyncedSessions();
+        for (const session of syncedSessions) {
+          if (!session || !session.tabs) continue;
+          for (const tab of session.tabs) {
+            if (tab.groupTitle) {
+              const sessionGroupId = `saved_group_${session.id}_${tab.groupTitle}`;
+              if (!groupMap.has(sessionGroupId)) {
+                const groupTabs = session.tabs
+                  .filter((t) => t.groupTitle === tab.groupTitle)
+                  .map((t) => ({
+                    title: t.title || t.url || "已保存标签页",
+                    url: t.url || "",
+                    favIconUrl: t.favIconUrl,
+                  }));
+                groupMap.set(sessionGroupId, {
+                  id: sessionGroupId,
+                  title: tab.groupTitle,
+                  color: tab.groupColor || "blue",
+                  collapsed: true,
+                  isClosed: true,
+                  sourceLabel: `来自会话: ${session.label || session.deviceName}`,
+                  tabs: groupTabs,
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[TabGroupsPage] Synced sessions tabGroups extraction notice:", e);
       }
 
       setGroups(Array.from(groupMap.values()));
@@ -150,7 +188,7 @@ export const TabGroupsPage: React.FC = () => {
     loadAllTabGroups();
     loadSettings();
 
-    // 实时监听 Chrome Tab Groups 变动事件 (Created, Updated, Removed, Moved)
+    // 实时监听 Chrome Tab Groups 变动事件
     if (typeof chrome !== "undefined" && chrome.tabGroups) {
       const handleGroupChange = () => {
         loadAllTabGroups();
@@ -222,7 +260,7 @@ export const TabGroupsPage: React.FC = () => {
         if (chrome.tabGroups && tabIds.length > 0) {
           const newGroupId = await chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] });
           await chrome.tabGroups.update(newGroupId, {
-            title: group.title.replace(/\s*\[最近关闭\]$/, ""),
+            title: group.title,
             color: (group.color as any) || "blue",
           });
         }
@@ -294,11 +332,11 @@ export const TabGroupsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 标签组卡片阵列 (含激活与最近关闭的 Tab Groups) */}
+      {/* 标签组卡片阵列 (含活跃、最近关闭及已保存会话中的 Tab Groups) */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {filteredGroups.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
-            未检测到任何活跃或最近关闭的 Tab Groups
+            未检测到任何活跃、已关闭或保存的 Tab Groups
           </div>
         ) : (
           filteredGroups.map((g) => (
@@ -339,7 +377,7 @@ export const TabGroupsPage: React.FC = () => {
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <span className={`native-badge native-badge-${g.color}`}>📁 {g.title}</span>
                     <span style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
-                      ({g.tabs.length} 标签页) {g.isClosed ? "[已关闭记录]" : g.collapsed ? "[已折叠]" : "[活跃]"}
+                      ({g.tabs.length} 标签页) [{g.sourceLabel || "活跃"}]
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
@@ -362,7 +400,7 @@ export const TabGroupsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* 组内网页列表 */}
+              {/* 组内网页列表容器 */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "8px" }}>
                 {g.tabs.map((tab, idx) => (
                   <div key={tab.id || idx} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>

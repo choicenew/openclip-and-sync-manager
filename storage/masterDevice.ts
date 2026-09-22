@@ -7,6 +7,7 @@ export interface ModalitySourceMapping {
   bookmarks: ModalitySourceTarget;
   history: ModalitySourceTarget;
   sessions: ModalitySourceTarget;
+  tabGroups: ModalitySourceTarget;
   extensions: ModalitySourceTarget;
 }
 
