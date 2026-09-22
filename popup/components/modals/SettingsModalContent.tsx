@@ -1,10 +1,10 @@
-import { Box } from "@mantine/core";
+import React from "react";
 import { SettingsPage } from "../../pages/SettingsPage";
 
-export const SettingsModalContent = () => {
+export const SettingsModalContent: React.FC = () => {
   return (
-    <Box p="xs" sx={{ maxHeight: "80vh", overflowY: "auto" }}>
+    <div style={{ maxHeight: "80vh", overflowY: "auto", padding: "8px" }}>
       <SettingsPage />
-    </Box>
+    </div>
   );
 };

@@ -1,45 +1,17 @@
-import {
-  Alert,
-  Badge,
-  Box,
-  Button,
-  Card,
-  Group,
-  Paper,
-  ScrollArea,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Tooltip,
-  useMantineTheme,
-} from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconCrown,
-  IconDevices,
-  IconDownload,
-  IconRefresh,
-  IconShield,
-  IconTarget,
-} from "@tabler/icons-react";
-import { useEffect, useMemo, useState } from "react";
-
+import React, { useEffect, useMemo, useState } from "react";
 import { getDiscoveredDevices, registerCurrentDevice } from "~storage/discoveredDevices";
 import {
   type DevicePermissionRule,
   getMasterDeviceState,
+  type MasterDeviceState,
   type ModalitySourceTarget,
   setMasterDeviceState,
-  type MasterDeviceState,
 } from "~storage/masterDevice";
 import { getSettings, setSettings } from "~storage/settings";
 import { getSyncSettings, type SyncSettings } from "~storage/syncSettings";
 import type { Settings } from "~types/settings";
 import { runFullSync } from "~utils/sync/engine";
 import type { DeviceInfo } from "~utils/sync/provider";
-import { lightOrDark } from "~utils/sx";
 
 function formatLastSync(timestamp: number | null | undefined): string {
   if (!timestamp) return "从未同步";
@@ -51,8 +23,7 @@ function formatLastSync(timestamp: number | null | undefined): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-export const DevicesPage = () => {
-  const theme = useMantineTheme();
+export const DevicesPage: React.FC = () => {
   const [syncSettings, setSyncSettingsState] = useState<SyncSettings | null>(null);
   const [sysSettings, setSysSettings] = useState<Settings | null>(null);
   const [discoveredDevices, setDiscoveredDevices] = useState<DeviceInfo[]>([]);
@@ -66,7 +37,7 @@ export const DevicesPage = () => {
     deviceRules: {},
   });
 
-  const [selectedTargetDeviceId, setSelectedTargetDeviceId] = useState<string | null>(null);
+  const [selectedTargetDeviceId, setSelectedTargetDeviceId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
 
   const loadAllState = async () => {
@@ -83,6 +54,10 @@ export const DevicesPage = () => {
     const registered = await registerCurrentDevice(settings);
     setDiscoveredDevices(registered);
   };
+
+  useEffect(() => {
+    loadAllState();
+  }, []);
 
   const handleToggleLocalUpload = async (
     modality: "clipboard" | "bookmarks" | "sessions" | "history" | "extensions",
@@ -101,10 +76,6 @@ export const DevicesPage = () => {
     setSysSettings(updatedSys);
     await setSettings(updatedSys);
   };
-
-  useEffect(() => {
-    loadAllState();
-  }, []);
 
   const handleRunSync = async (targetDeviceId?: string) => {
     setSyncing(true);
@@ -182,11 +153,7 @@ export const DevicesPage = () => {
       },
     };
 
-    const updatedRule: DevicePermissionRule = {
-      ...currentRule,
-      enabled,
-    };
-
+    const updatedRule: DevicePermissionRule = { ...currentRule, enabled };
     const updatedRules = { ...currentRules, [targetDeviceId]: updatedRule };
     const nextMasterState = await setMasterDeviceState({
       isMasterDevice: true,
@@ -216,11 +183,7 @@ export const DevicesPage = () => {
       },
     };
 
-    const updatedRule: DevicePermissionRule = {
-      ...currentRule,
-      customAlias: alias,
-    };
-
+    const updatedRule: DevicePermissionRule = { ...currentRule, customAlias: alias };
     const updatedRules = { ...currentRules, [targetDeviceId]: updatedRule };
     const nextMasterState = await setMasterDeviceState({
       isMasterDevice: true,
@@ -245,380 +208,195 @@ export const DevicesPage = () => {
         });
       }
     }
-    // 默认展示设备 B、设备 C 掌控预设项
-    if (map.size <= 1) {
-      const devBId = "device_b_slave";
-      if (!map.has(devBId)) {
-        map.set(devBId, {
-          deviceId: devBId,
-          deviceName: "从设备 B (Device B)",
-          lastActive: Date.now() - 3600000,
-        });
-      }
-      const devCId = "device_c_slave";
-      if (!map.has(devCId)) {
-        map.set(devCId, {
-          deviceId: devCId,
-          deviceName: "从设备 C (Device C)",
-          lastActive: Date.now() - 7200000,
-        });
-      }
-    }
     return Array.from(map.values());
   }, [discoveredDevices, masterState.deviceRules]);
-
-  const deviceSelectOptions = [
-    { value: "all", label: "🌐 全量设备 (所有数据源)" },
-    { value: "none", label: "⛔ 禁用 (不拉取任何源数据)" },
-    ...allDisplayDevices.map((d) => ({
-      value: d.deviceId,
-      label: `🎯 仅从【${masterState.deviceRules?.[d.deviceId]?.customAlias || d.deviceName}】`,
-    })),
-  ];
 
   const isEditable = masterState.isMasterDevice && !masterState.isForcedAuxiliary;
 
   return (
-    <Stack spacing="xs" p="xs" sx={{ flex: 1, minHeight: 0 }}>
-      {/* 1. 顶部：主辅设备角色控制与标记 */}
-      <Card p="xs" radius="md" withBorder bg={lightOrDark(theme, "indigo.0", "dark.6")}>
-        <Stack spacing="xs">
-          <Group position="apart" align="center">
-            <Group spacing="xs">
-              <IconDevices size="1.1rem" color={theme.colors.indigo[7]} />
-              <Text fw={600} fz="xs">
-                跨端设备管理与 Master 模态数据源管控矩阵
-              </Text>
-              {masterState.isMasterDevice && !masterState.isForcedAuxiliary ? (
-                <Badge size="xs" color="indigo" leftSection={<IconCrown size={12} />}>
-                  主控制设备 (Master)
-                </Badge>
-              ) : (
-                <Badge size="xs" color="orange" leftSection={<IconShield size={12} />}>
-                  从属辅设备 (Auxiliary)
-                </Badge>
-              )}
-            </Group>
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "12px", height: "100%", overflowY: "auto" }}>
+      {/* 1. 顶部：主辅设备角色控制卡片 */}
+      <div className="native-card" style={{ borderColor: "var(--primary-color)" }}>
+        <div className="flex-between" style={{ marginBottom: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+            <span>💻</span>
+            <span>跨端设备墙与 Master 规则控制矩阵</span>
+            {masterState.isMasterDevice && !masterState.isForcedAuxiliary ? (
+              <span className="native-badge native-badge-purple">👑 主设备 (Master)</span>
+            ) : (
+              <span className="native-badge native-badge-orange">🛡️ 辅助从设备 (Auxiliary)</span>
+            )}
+          </div>
 
-            <Tooltip
-              label={
-                masterState.isForcedAuxiliary
-                  ? `已存在云端主控设备 (${masterState.masterDeviceName || "云端主控"})`
-                  : "设置本机为主控制设备"
-              }
-            >
-              <Group spacing="xs">
-                <Text fz="xs" color="dimmed">
-                  设为主设备
-                </Text>
-                <Switch
-                  size="xs"
-                  color="indigo"
-                  checked={masterState.isMasterDevice && !masterState.isForcedAuxiliary}
-                  disabled={masterState.isForcedAuxiliary}
-                  onChange={(e) => handleToggleMaster(e.currentTarget.checked)}
-                />
-              </Group>
-            </Tooltip>
-          </Group>
+          <label className="native-switch" title="将本机设为 Master 云端主控设备">
+            <input
+              type="checkbox"
+              checked={masterState.isMasterDevice && !masterState.isForcedAuxiliary}
+              disabled={masterState.isForcedAuxiliary}
+              onChange={(e) => handleToggleMaster(e.target.checked)}
+            />
+            <span className="native-slider"></span>
+          </label>
+        </div>
 
-          {/* 子设备 (如设备 B) 本地自主关停上传与隐私卡片 */}
-          <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "gray.1", "dark.6")}>
-            <Stack spacing="xs">
-              <Group position="apart">
-                <Group spacing="xs">
-                  <IconShield size={16} color={theme.colors.indigo[6]} />
-                  <Text fw={600} fz="xs">
-                    本机 (子设备 / 设备 B) 自主数据关停与隐私控制 (独立最高优先级)
-                  </Text>
-                </Group>
-                <Badge size="xs" color="teal">
-                  最高自主权
-                </Badge>
-              </Group>
-              <Text fz={11} color="dimmed">
-                无论主设备给出的控制权限如何，在此您可以随时关停本机特定模态的数据上传。被关闭的模态数据将只留在本机，绝不上传到云端：
-              </Text>
+        {/* 本机自主关停数据模态上传卡片 */}
+        <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div className="flex-between">
+            <span style={{ fontWeight: 600, fontSize: "11px" }}>🛡️ 本机 (子设备) 自主数据关停控制（独立最高优先级）</span>
+            <span className="native-badge native-badge-green">最高自主权</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", fontSize: "11px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={sysSettings?.syncModalities?.clipboard !== false}
+                onChange={(e) => handleToggleLocalUpload("clipboard", e.target.checked)}
+              />
+              <span>📋 剪贴板</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={sysSettings?.syncModalities?.bookmarks !== false}
+                onChange={(e) => handleToggleLocalUpload("bookmarks", e.target.checked)}
+              />
+              <span>🔖 书签树</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={sysSettings?.syncModalities?.sessions !== false}
+                onChange={(e) => handleToggleLocalUpload("sessions", e.target.checked)}
+              />
+              <span>🌐 会话标签</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={sysSettings?.syncModalities?.history !== false}
+                onChange={(e) => handleToggleLocalUpload("history", e.target.checked)}
+              />
+              <span>📜 浏览历史</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={sysSettings?.syncModalities?.extensions !== false}
+                onChange={(e) => handleToggleLocalUpload("extensions", e.target.checked)}
+              />
+              <span>🧩 扩展列表</span>
+            </label>
+          </div>
+        </div>
 
-              <Group spacing="md">
-                <Switch
-                  size="xs"
-                  label="📋 剪贴板上传"
-                  color="indigo"
-                  checked={sysSettings?.syncModalities?.clipboard !== false}
-                  onChange={(e) => handleToggleLocalUpload("clipboard", e.currentTarget.checked)}
-                />
-                <Switch
-                  size="xs"
-                  label="🔖 书签树上传"
-                  color="indigo"
-                  checked={sysSettings?.syncModalities?.bookmarks !== false}
-                  onChange={(e) => handleToggleLocalUpload("bookmarks", e.currentTarget.checked)}
-                />
-                <Switch
-                  size="xs"
-                  label="🌐 会话标签上传"
-                  color="indigo"
-                  checked={sysSettings?.syncModalities?.sessions !== false}
-                  onChange={(e) => handleToggleLocalUpload("sessions", e.currentTarget.checked)}
-                />
-                <Switch
-                  size="xs"
-                  label="📜 浏览历史上传"
-                  color="indigo"
-                  checked={sysSettings?.syncModalities?.history !== false}
-                  onChange={(e) => handleToggleLocalUpload("history", e.currentTarget.checked)}
-                />
-                <Switch
-                  size="xs"
-                  label="🧩 扩展列表上传"
-                  color="indigo"
-                  checked={sysSettings?.syncModalities?.extensions !== false}
-                  onChange={(e) => handleToggleLocalUpload("extensions", e.currentTarget.checked)}
-                />
-              </Group>
-            </Stack>
-          </Paper>
+        {/* 本机信息与定向同步 */}
+        <div className="flex-between" style={{ marginTop: "8px" }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "12px" }}>
+              当前设备：{syncSettings?.deviceName || "设备 A"} <span className="native-badge">ID: {syncSettings?.deviceId?.slice(0, 8)}...</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "6px" }}>
+            {masterState.isMasterDevice && (
+              <select
+                className="native-select"
+                value={selectedTargetDeviceId}
+                onChange={(e) => setSelectedTargetDeviceId(e.target.value)}>
+                <option value="">-- 选择定向拉取目标设备 --</option>
+                {allDisplayDevices.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {masterState.deviceRules?.[d.deviceId]?.customAlias || d.deviceName}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button className="native-btn native-btn-sm" disabled={syncing} onClick={() => handleRunSync(selectedTargetDeviceId || undefined)}>
+              {syncing ? "同步中..." : "🎯 定向/全量拉取刷新"}
+            </button>
+          </div>
+        </div>
+      </div>
 
-          {/* 本机信息与全量定向拉取 */}
-          <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.5")}>
-            <Group position="apart" align="center">
-              <Stack spacing={2}>
-                <Group spacing={6}>
-                  <Text fz="xs" fw={600}>
-                    当前设备：{syncSettings?.deviceName || "设备 A"}
-                  </Text>
-                  <Badge size="xs" variant="outline">
-                    ID: {syncSettings?.deviceId || "未知 ID"}
-                  </Badge>
-                </Group>
-                <Text fz={11} color="dimmed">
-                  {masterState.isMasterDevice
-                    ? "主设备拥有最高控制权：可精确配置设备 B、C 从哪台设备拉取剪贴板、书签、历史、会话、扩展"
-                    : `受主设备 (${masterState.masterDeviceName || "云端主控制设备"}) 交叉规则矩阵约束`}
-                </Text>
-              </Stack>
+      {/* 2. 已关联从设备墙卡片列表 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, overflowY: "auto" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px", color: "var(--text-dimmed)" }}>
+          已登记的设备节点卡片墙 ({allDisplayDevices.length})
+        </div>
 
-              <Group spacing="xs">
-                {masterState.isMasterDevice && (
-                  <Select
-                    size="xs"
-                    placeholder="选择定向拉取目标设备..."
-                    data={allDisplayDevices.map((d) => ({
-                      value: d.deviceId,
-                      label: `${masterState.deviceRules?.[d.deviceId]?.customAlias || d.deviceName} (${d.deviceId.slice(0, 8)}...)`,
-                    }))}
-                    value={selectedTargetDeviceId}
-                    onChange={setSelectedTargetDeviceId}
-                    clearable
-                    w={190}
-                  />
-                )}
-                <Button
-                  size="xs"
-                  variant="filled"
-                  color="indigo"
-                  leftIcon={<IconTarget size={14} />}
-                  loading={syncing}
-                  onClick={() => handleRunSync(selectedTargetDeviceId || undefined)}
-                >
-                  {selectedTargetDeviceId ? "定向拉取此设备" : "全量同步与刷新"}
-                </Button>
-              </Group>
-            </Group>
-          </Paper>
-        </Stack>
-      </Card>
+        {allDisplayDevices.map((dev) => {
+          const isCurrent = dev.deviceId === syncSettings?.deviceId;
+          const deviceRule: DevicePermissionRule = masterState.deviceRules?.[dev.deviceId] || {
+            deviceId: dev.deviceId,
+            deviceName: dev.deviceName,
+            enabled: true,
+            sources: { clipboard: "all", bookmarks: "all", history: "all", sessions: "all", extensions: "all" },
+          };
 
-      {/* 2. 设备管控卡片墙列表 (重点：设备 B、设备 C 规则表) */}
-      <ScrollArea sx={{ flex: 1 }}>
-        <Stack spacing="xs">
-          <Text fz={11} color="dimmed" fw={600}>
-            已关联的从设备（设备 B、C、D）管控与拉取矩阵：
-          </Text>
-
-          {allDisplayDevices.map((dev) => {
-            const isCurrent = dev.deviceId === syncSettings?.deviceId;
-            const deviceRule: DevicePermissionRule = masterState.deviceRules?.[dev.deviceId] || {
-              deviceId: dev.deviceId,
-              deviceName: dev.deviceName,
-              enabled: true,
-              sources: {
-                clipboard: "all",
-                bookmarks: "all",
-                history: "all",
-                sessions: "all",
-                extensions: "all",
-              },
-            };
-
-            return (
-              <Paper
-                key={dev.deviceId}
-                p="xs"
-                radius="sm"
-                withBorder
-                bg={lightOrDark(theme, isCurrent ? "indigo.0" : "white", "dark.5")}
-              >
-                <Stack spacing={6}>
-                  <Group position="apart" align="center">
-                    <Group spacing={6}>
-                      <IconDevices
-                        size={14}
-                        color={isCurrent ? theme.colors.indigo[6] : theme.colors.gray[6]}
-                      />
-                      <Text fz="xs" fw={600}>
-                        设备：{deviceRule.customAlias || dev.deviceName}
-                      </Text>
-                      <Badge
-                        size="xs"
-                        color={isCurrent ? "indigo" : deviceRule.enabled !== false ? "blue" : "red"}
-                      >
-                        {isCurrent
-                          ? "本机 (主/从)"
-                          : deviceRule.enabled !== false
-                            ? `ID: ${dev.deviceId.slice(0, 10)}...`
-                            : "🚫 已封禁"}
-                      </Badge>
-                      <Text fz={10} color="dimmed">
-                        {formatLastSync(dev.lastActive)}
-                      </Text>
-                    </Group>
-
-                    <Group spacing="xs">
-                      {/* 允许/封禁 Switch */}
-                      <Tooltip
-                        label={
-                          deviceRule.enabled !== false
-                            ? "点击封禁此设备，禁止其同步或拉取数据"
-                            : "点击解封，允许此设备正常同步"
-                        }
-                      >
-                        <Switch
-                          size="xs"
-                          color="indigo"
-                          label={deviceRule.enabled !== false ? "✅ 允许同步" : "🚫 已封禁"}
-                          checked={deviceRule.enabled !== false}
-                          disabled={!isEditable}
-                          onChange={(e) =>
-                            updateDeviceEnabled(dev.deviceId, dev.deviceName, e.currentTarget.checked)
-                          }
-                        />
-                      </Tooltip>
-
-                      {!isCurrent && (
-                        <Button
-                          size="xs"
-                          compact
-                          variant="light"
-                          color="indigo"
-                          leftIcon={<IconDownload size={12} />}
-                          onClick={() => handleRunSync(dev.deviceId)}
-                        >
-                          主设备直接拉取此机器
-                        </Button>
-                      )}
-                    </Group>
-                  </Group>
-
-                  {/* 自定义别名 */}
-                  <Group grow spacing="xs">
-                    <TextInput
-                      size="xs"
-                      label="🏷️ 设备备注/别名"
-                      placeholder="设置设备自定义名称 (如: 办公室Mac / 设备 B)"
-                      value={deviceRule.customAlias || ""}
+          return (
+            <div key={dev.deviceId} className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div className="flex-between">
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>💻</span>
+                  <span style={{ fontWeight: 600, fontSize: "12px" }}>{deviceRule.customAlias || dev.deviceName}</span>
+                  {isCurrent && <span className="native-badge native-badge-cyan">本机</span>}
+                  <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>{formatLastSync(dev.lastActive)}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <label className="native-switch" title="允许/禁用该设备同步">
+                    <input
+                      type="checkbox"
+                      checked={deviceRule.enabled !== false}
                       disabled={!isEditable}
-                      onChange={(e) =>
-                        updateDeviceCustomAlias(dev.deviceId, dev.deviceName, e.target.value)
-                      }
+                      onChange={(e) => updateDeviceEnabled(dev.deviceId, dev.deviceName, e.target.checked)}
                     />
-                  </Group>
+                    <span className="native-slider"></span>
+                  </label>
+                  {!isCurrent && (
+                    <button className="native-btn native-btn-sm native-btn-subtle" onClick={() => handleRunSync(dev.deviceId)}>
+                      📥 单独拉取
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                  {/* 5 大模态数据源拉取选择器 */}
-                  <Group grow spacing="xs">
-                    <Select
-                      size="xs"
+              {/* 别名与规则控制 */}
+              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <input
+                  type="text"
+                  className="native-input flex-1"
+                  placeholder="设置设备自定义备注名称..."
+                  value={deviceRule.customAlias || ""}
+                  disabled={!isEditable}
+                  onChange={(e) => updateDeviceCustomAlias(dev.deviceId, dev.deviceName, e.target.value)}
+                />
+              </div>
+
+              {/* 5 大模态数据源拉取选择器 */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "6px", fontSize: "11px" }}>
+                {(["clipboard", "bookmarks", "history", "sessions", "extensions"] as const).map((mod) => (
+                  <div key={mod} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    <span style={{ fontSize: "10px", color: "var(--text-dimmed)", textTransform: "capitalize" }}>{mod} 源:</span>
+                    <select
+                      className="native-select"
                       disabled={!isEditable}
-                      label="📋 剪贴板源"
-                      data={deviceSelectOptions}
-                      value={deviceRule.sources?.clipboard || "all"}
-                      onChange={(val) =>
-                        updateDeviceModalitySource(
-                          dev.deviceId,
-                          dev.deviceName,
-                          "clipboard",
-                          val as any,
-                        )
-                      }
-                    />
-                    <Select
-                      size="xs"
-                      disabled={!isEditable}
-                      label="🔖 书签源"
-                      data={deviceSelectOptions}
-                      value={deviceRule.sources?.bookmarks || "all"}
-                      onChange={(val) =>
-                        updateDeviceModalitySource(
-                          dev.deviceId,
-                          dev.deviceName,
-                          "bookmarks",
-                          val as any,
-                        )
-                      }
-                    />
-                    <Select
-                      size="xs"
-                      disabled={!isEditable}
-                      label="📜 历史源"
-                      data={deviceSelectOptions}
-                      value={deviceRule.sources?.history || "all"}
-                      onChange={(val) =>
-                        updateDeviceModalitySource(
-                          dev.deviceId,
-                          dev.deviceName,
-                          "history",
-                          val as any,
-                        )
-                      }
-                    />
-                    <Select
-                      size="xs"
-                      disabled={!isEditable}
-                      label="🌐 会话源"
-                      data={deviceSelectOptions}
-                      value={deviceRule.sources?.sessions || "all"}
-                      onChange={(val) =>
-                        updateDeviceModalitySource(
-                          dev.deviceId,
-                          dev.deviceName,
-                          "sessions",
-                          val as any,
-                        )
-                      }
-                    />
-                    <Select
-                      size="xs"
-                      disabled={!isEditable}
-                      label="🧩 扩展源"
-                      data={deviceSelectOptions}
-                      value={deviceRule.sources?.extensions || "all"}
-                      onChange={(val) =>
-                        updateDeviceModalitySource(
-                          dev.deviceId,
-                          dev.deviceName,
-                          "extensions",
-                          val as any,
-                        )
-                      }
-                    />
-                  </Group>
-                </Stack>
-              </Paper>
-            );
-          })}
-        </Stack>
-      </ScrollArea>
-    </Stack>
+                      style={{ fontSize: "10px", padding: "2px 4px" }}
+                      value={deviceRule.sources?.[mod] || "all"}
+                      onChange={(e) => updateDeviceModalitySource(dev.deviceId, dev.deviceName, mod, e.target.value as any)}>
+                      <option value="all">全量设备</option>
+                      <option value="none">禁用</option>
+                      {allDisplayDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          仅【{masterState.deviceRules?.[d.deviceId]?.customAlias || d.deviceName}】
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };

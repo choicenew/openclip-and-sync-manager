@@ -1,7 +1,5 @@
-import { Badge, Checkbox, Divider, Group, rem, Stack, Text, useMantineTheme } from "@mantine/core";
-import { modals } from "@mantine/modals";
-import { IconEdit, IconKeyboard } from "@tabler/icons-react";
 import { useAtomValue } from "jotai";
+import React from "react";
 
 import { useCopyEntry } from "~popup/hooks/useCopyEntry";
 import { useNow } from "~popup/hooks/useNow";
@@ -16,15 +14,10 @@ import {
 import type { Entry } from "~types/entry";
 import { badgeDateFormatter } from "~utils/date";
 import { getEntryTimestamp } from "~utils/entries";
-import { defaultBorderColor, lightOrDark } from "~utils/sx";
 
-import { CommonActionIcon } from "./CommonActionIcon";
 import { EntryDeleteAction } from "./EntryDeleteAction";
 import { EntryFavoriteAction } from "./EntryFavoriteAction";
 import { EntryPinAction } from "./EntryPinAction";
-import { EditEntryModalContent } from "./modals/EditEntryModalContent";
-import { ShortcutsModalContent } from "./modals/ShortcutsModalContent";
-import { ShortcutBadge } from "./ShortcutBadge";
 import { TagBadge } from "./TagBadge";
 import { TagSelect } from "./TagSelect";
 
@@ -34,8 +27,7 @@ interface Props {
   isKeyboardSelected: boolean;
 }
 
-export const EntryRow = ({ entry, selectedEntryIds, isKeyboardSelected }: Props) => {
-  const theme = useMantineTheme();
+export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardSelected }) => {
   const now = useNow();
   const settings = useAtomValue(settingsAtom);
   const entryIdToTags = useAtomValue(entryIdToTagsAtom) || {};
@@ -46,141 +38,93 @@ export const EntryRow = ({ entry, selectedEntryIds, isKeyboardSelected }: Props)
   const pinnedEntryIds = useAtomValue(pinnedEntryIdsAtom) || [];
   const isPinned = pinnedEntryIds.includes(entry.id);
 
-  const commandName = entryCommands.find(
-    (entryCommand) => entryCommand.entryId === entry.id,
-  )?.commandName;
-  const shortcut = commands.find((command) => command.name === commandName)?.shortcut;
+  const isSelected = selectedEntryIds.has(entry.id);
+  const isCurrentCopied = entry.content === clipboardSnapshot?.content;
 
   return (
-    <Stack
-      key={entry.id}
-      spacing={0}
-      sx={(theme) => ({
-        backgroundColor: selectedEntryIds.has(entry.id)
-          ? lightOrDark(theme, theme.colors.indigo[0], theme.fn.darken(theme.colors.indigo[9], 0.5))
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        height: "32px",
+        padding: "0 10px",
+        borderBottom: "1px solid var(--border-color)",
+        backgroundColor: isSelected
+          ? "rgba(79, 70, 229, 0.15)"
           : isKeyboardSelected
-            ? lightOrDark(theme, theme.colors.gray[0], theme.colors.dark[5])
-            : isPinned
-              ? lightOrDark(theme, "rgba(99, 102, 241, 0.04)", "rgba(99, 102, 241, 0.08)")
-              : undefined,
-        boxShadow: isKeyboardSelected
-          ? `inset ${rem(3)} 0 0 0 ${lightOrDark(theme, theme.colors.indigo[5], theme.colors.indigo[4])}`
+          ? "rgba(0, 0, 0, 0.05)"
           : isPinned
-            ? `inset ${rem(3)} 0 0 0 ${theme.colors.indigo[5]}`
-            : undefined,
+          ? "rgba(99, 102, 241, 0.05)"
+          : "transparent",
+        borderLeft: isPinned ? "3px solid var(--primary-color)" : isKeyboardSelected ? "3px solid #6366f1" : "none",
         cursor: "pointer",
-        ":hover": {
-          backgroundColor: selectedEntryIds.has(entry.id)
-            ? lightOrDark(
-                theme,
-                theme.colors.indigo[0],
-                theme.fn.darken(theme.colors.indigo[9], 0.5),
-              )
-            : lightOrDark(theme, theme.colors.gray[0], theme.colors.dark[5]),
-        },
-      })}
-      onClick={() => copyEntry(entry)}
-    >
-      <Group align="center" spacing={0} noWrap px="sm" h={32}>
-        <Checkbox
-          size="xs"
-          sx={(theme) => ({
-            ".mantine-Checkbox-input:hover": {
-              borderColor: theme.fn.primaryColor(),
-            },
-          })}
-          checked={selectedEntryIds.has(entry.id)}
-          onChange={() =>
-            selectedEntryIds.has(entry.id)
-              ? selectedEntryIds.delete(entry.id)
-              : selectedEntryIds.add(entry.id)
+        userSelect: "none",
+      }}
+      onClick={() => copyEntry(entry)}>
+      {/* 选中 Checkbox */}
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => {
+          if (isSelected) {
+            selectedEntryIds.delete(entry.id);
+          } else {
+            selectedEntryIds.add(entry.id);
           }
-          onClick={(e) => e.stopPropagation()}
-        />
-        <Badge
-          color={
-            isPinned
-              ? "indigo.6"
-              : entry.content === clipboardSnapshot?.content
-                ? undefined
-                : lightOrDark(theme, "gray.5", "dark.4")
-          }
-          variant="filled"
-          w={100}
-          sx={{ flexShrink: 0 }}
-          size="sm"
-          mx="sm"
-        >
-          {isPinned
-            ? "📌 置顶"
-            : entry.content === clipboardSnapshot?.content
-              ? "Copied"
-              : badgeDateFormatter(now, new Date(getEntryTimestamp(entry, settings)))}
-        </Badge>
-        <Text
-          fz="xs"
-          sx={{
-            flex: "1 2 0",
-            whiteSpace: "nowrap",
-            textOverflow: "ellipsis",
-            overflow: "hidden",
-            userSelect: "none",
-            minWidth: 0,
-          }}
-        >
-          {/* Don't fully render large content. */}
-          {entry.content.slice(0, 1000)}
-        </Text>
-        <Group
-          align="center"
-          spacing={rem(4)}
-          noWrap
-          sx={{
-            flex: "0 1 auto",
-            minWidth: 0,
-          }}
-        >
-          {entryIdToTags[entry.id]
-            ?.slice()
-            .sort()
-            .map((tag) => <TagBadge key={tag} tag={tag} />)}
-          {shortcut !== undefined && <ShortcutBadge shortcut={shortcut || "Not set"} />}
-        </Group>
-        <Text ff="monospace" color="dimmed" fz={10} ml="xs" sx={{ userSelect: "none" }}>
-          {entry.content.length}
-        </Text>
-        <Group align="center" spacing={0} noWrap ml={rem(4)}>
-          <TagSelect entryId={entry.id} />
-          <CommonActionIcon
-            onClick={() =>
-              modals.open({
-                padding: 0,
-                size: "xl",
-                withCloseButton: false,
-                children: <ShortcutsModalContent entry={entry} />,
-              })
-            }
-          >
-            <IconKeyboard size="1rem" />
-          </CommonActionIcon>
-          <CommonActionIcon
-            onClick={() =>
-              modals.open({
-                padding: 0,
-                size: "xl",
-                withCloseButton: false,
-                children: <EditEntryModalContent entry={entry} />,
-              })
-            }
-          >
-            <IconEdit size="1rem" />
-          </CommonActionIcon>
-          <EntryPinAction entryId={entry.id} />
-          <EntryFavoriteAction entryId={entry.id} />
-          <EntryDeleteAction entryId={entry.id} />
-        </Group>
-      </Group>
-      <Divider sx={(theme) => ({ borderColor: defaultBorderColor(theme) })} />
-    </Stack>
+        }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ marginRight: "8px" }}
+      />
+
+      {/* Badge 时间/置顶指示 */}
+      <span
+        className={`native-badge ${
+          isPinned
+            ? "native-badge-purple"
+            : isCurrentCopied
+            ? "native-badge-green"
+            : ""
+        }`}
+        style={{ width: "80px", textAlign: "center", marginRight: "8px", flexShrink: 0 }}>
+        {isPinned
+          ? "📌 置顶"
+          : isCurrentCopied
+          ? "已复制"
+          : badgeDateFormatter(now, new Date(getEntryTimestamp(entry, settings)))}
+      </span>
+
+      {/* 剪贴板文本预览 */}
+      <span
+        style={{
+          flex: 1,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          fontSize: "12px",
+          minWidth: 0,
+        }}>
+        {entry.content.slice(0, 500)}
+      </span>
+
+      {/* 标签与字符数 */}
+      <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0, marginLeft: "8px" }}>
+        {entryIdToTags[entry.id]?.slice().sort().map((tag) => (
+          <TagBadge key={tag} tag={tag} />
+        ))}
+        <span style={{ fontSize: "10px", color: "var(--text-dimmed)", fontFamily: "monospace" }}>
+          {entry.content.length}字
+        </span>
+      </div>
+
+      {/* 快捷操作区 */}
+      <div
+        style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "8px", flexShrink: 0 }}
+        onClick={(e) => e.stopPropagation()}>
+        <TagSelect entryId={entry.id} />
+        <EntryPinAction entryId={entry.id} />
+        <EntryFavoriteAction entryId={entry.id} />
+        <EntryDeleteAction entryId={entry.id} />
+      </div>
+    </div>
   );
 };

@@ -1,13 +1,13 @@
-import { Badge } from "@mantine/core";
+import React from "react";
 
 interface Props {
   shortcut: string;
 }
 
-export const ShortcutBadge = ({ shortcut }: Props) => {
+export const ShortcutBadge: React.FC<Props> = ({ shortcut }) => {
   return (
-    <Badge variant="filled" size="xs" sx={{ userSelect: "none", flexShrink: 0, display: "flex" }}>
+    <span className="native-badge native-badge-blue" style={{ userSelect: "none", flexShrink: 0 }}>
       {shortcut}
-    </Badge>
+    </span>
   );
 };

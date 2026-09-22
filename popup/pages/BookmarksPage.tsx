@@ -1,15 +1,25 @@
-import { ActionIcon, Badge, Button, Card, Group, ScrollArea, Stack, Text, TextInput, Tooltip } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { IconBookmark, IconCloudDownload, IconCloudUpload, IconCopy, IconExternalLink, IconRefresh, IconSearch } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-import { exportBookmarksTree, extractBookmarkUrls, type SyncBookmark } from "~utils/sync/handlers/bookmarks";
+import React, { useEffect, useState } from "react";
+import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
 import { runFullSync } from "~utils/sync/engine";
+import { exportBookmarksTree, extractBookmarkUrls } from "~utils/sync/handlers/bookmarks";
 
-export const BookmarksPage = ({ searchQuery }: { searchQuery: string }) => {
+export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) => {
   const [bookmarks, setBookmarks] = useState<{ title: string; url: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filterText, setFilterText] = useState("");
+  const [toastMsg, setToastMsg] = useState("");
+
+  // 数据模态通道许可：Bookmarks 允许走哪些云节点
+  const [allowedProviders, setAllowedProviders] = useState({
+    chrome: true,
+    webdav: true,
+    onedrive: true,
+    googledrive: true,
+    gist: true,
+    s3: true,
+    customRest: true,
+  });
 
   const loadBookmarks = async () => {
     setLoading(true);
@@ -19,31 +29,61 @@ export const BookmarksPage = ({ searchQuery }: { searchQuery: string }) => {
     setLoading(false);
   };
 
+  const loadSettings = async () => {
+    const s = await getSyncSettings();
+    const currentMods = s.providerModalities || {};
+    setAllowedProviders({
+      chrome: currentMods.chrome?.bookmarks ?? true,
+      webdav: currentMods.webdav?.bookmarks ?? true,
+      onedrive: currentMods.onedrive?.bookmarks ?? true,
+      googledrive: currentMods.googledrive?.bookmarks ?? true,
+      gist: currentMods.gist?.bookmarks ?? true,
+      s3: currentMods.s3?.bookmarks ?? true,
+      customRest: currentMods.customRest?.bookmarks ?? true,
+    });
+  };
+
   useEffect(() => {
     loadBookmarks();
+    loadSettings();
   }, []);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
+
+  const handleToggleProvider = async (providerKey: string, allowed: boolean) => {
+    const s = await getSyncSettings();
+    const updatedMods = { ...s.providerModalities };
+    if (updatedMods[providerKey as keyof typeof updatedMods]) {
+      updatedMods[providerKey as keyof typeof updatedMods] = {
+        ...updatedMods[providerKey as keyof typeof updatedMods],
+        bookmarks: allowed,
+      };
+    }
+    await setSyncSettings({ providerModalities: updatedMods });
+    setAllowedProviders((prev) => ({ ...prev, [providerKey]: allowed }));
+  };
 
   const handlePullRemoteBookmarks = async () => {
     setSyncing(true);
     const res = await runFullSync();
     await loadBookmarks();
     setSyncing(false);
-    notifications.show({
-      title: res.success ? "书签拉取合并成功" : "同步提示",
-      message: res.success ? "已成功从云端拉取远程书签并合并写入本机浏览器！" : res.message,
-      color: res.success ? "teal" : "red",
-    });
+    showToast(res.success ? "已成功拉取并合并写入本机浏览器书签！" : res.message);
   };
 
   const handlePushLocalBookmarks = async () => {
     setSyncing(true);
     const res = await runFullSync();
     setSyncing(false);
-    notifications.show({
-      title: res.success ? "书签推送成功" : "推送提示",
-      message: res.success ? "已成功将本机最新书签更新打包推送至云端！" : res.message,
-      color: res.success ? "teal" : "red",
-    });
+    showToast(res.success ? "已成功推送本机书签至云端！" : res.message);
+  };
+
+  const handleCopy = (url: string) => {
+    navigator.clipboard.writeText(url);
+    showToast("链接已复制到剪贴板！");
   };
 
   const query = (searchQuery || filterText).toLowerCase().trim();
@@ -51,94 +91,97 @@ export const BookmarksPage = ({ searchQuery }: { searchQuery: string }) => {
     (b) => b.title.toLowerCase().includes(query) || b.url.toLowerCase().includes(query),
   );
 
-  const handleCopy = (url: string) => {
-    navigator.clipboard.writeText(url);
-  };
-
   return (
-    <Stack spacing="xs" p="xs" style={{ flex: 1, minHeight: 0 }}>
-      <Group position="apart">
-        <TextInput
-          placeholder="搜索书签..."
-          icon={<IconSearch size={16} />}
-          value={filterText}
-          onChange={(e) => setFilterText(e.currentTarget.value)}
-          size="xs"
-          style={{ flex: 1 }}
-        />
-        <Group spacing={6}>
-          <Button
-            size="xs"
-            variant="light"
-            color="indigo"
-            leftIcon={<IconCloudDownload size={14} />}
-            loading={syncing}
-            onClick={handlePullRemoteBookmarks}
-          >
-            📥 拉取云端书签
-          </Button>
-          <Button
-            size="xs"
-            variant="outline"
-            color="blue"
-            leftIcon={<IconCloudUpload size={14} />}
-            loading={syncing}
-            onClick={handlePushLocalBookmarks}
-          >
-            📤 推送本机书签
-          </Button>
-          <Button size="xs" variant="subtle" leftIcon={<IconRefresh size={14} />} loading={loading} onClick={loadBookmarks}>
-            刷新
-          </Button>
-        </Group>
-      </Group>
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", height: "100%", overflowY: "auto" }}>
+      {/* 消息提示 Toast */}
+      {toastMsg && (
+        <div className="native-card" style={{ backgroundColor: "var(--primary-color)", color: "#fff", padding: "6px 12px", fontSize: "11px" }}>
+          🔔 {toastMsg}
+        </div>
+      )}
 
-      <ScrollArea style={{ flex: 1 }}>
-        <Stack spacing="xs">
-          {filtered.length === 0 ? (
-            <Text size="sm" color="dimmed" align="center" py="xl">
-              {loading ? "正在加载书签..." : "未找到匹配的书签"}
-            </Text>
-          ) : (
-            filtered.map((item, idx) => (
-              <Card key={idx} p="xs" withBorder shadow="none" radius="md">
-                <Group position="apart" noWrap>
-                  <Stack spacing={2} style={{ overflow: "hidden", flex: 1 }}>
-                    <Group spacing="xs">
-                      <IconBookmark size={14} color="#4C6EF5" />
-                      <Text size="sm" weight={500} truncate style={{ flex: 1 }}>
-                        {item.title || item.url}
-                      </Text>
-                    </Group>
-                    <Text size="xs" color="dimmed" truncate>
-                      {item.url}
-                    </Text>
-                  </Stack>
-                  <Group spacing={4} noWrap>
-                    <Tooltip label="复制 URL">
-                      <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => handleCopy(item.url)}>
-                        <IconCopy size={14} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="在新标签页打开">
-                      <ActionIcon
-                        size="sm"
-                        variant="subtle"
-                        color="gray"
-                        component="a"
-                        href={item.url}
-                        target="_blank"
-                      >
-                        <IconExternalLink size={14} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-                </Group>
-              </Card>
-            ))
-          )}
-        </Stack>
-      </ScrollArea>
-    </Stack>
+      {/* 控流面板 B: 【数据视角】书签允许同步走哪些云节点 */}
+      <div className="native-card" style={{ borderColor: "var(--primary-color)", backgroundColor: "rgba(79, 70, 229, 0.02)" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px", marginBottom: "4px" }}>
+          📡 【数据选途径】书签树 (Bookmarks) 允许同步到的云端 Backend 节点：
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", fontSize: "11px" }}>
+          {Object.entries(allowedProviders).map(([providerKey, allowed]) => (
+            <label key={providerKey} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={allowed}
+                onChange={(e) => handleToggleProvider(providerKey, e.target.checked)}
+              />
+              <span style={{ textTransform: "capitalize" }}>{providerKey}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* 搜索与同步 Bar */}
+      <div className="native-card flex-between" style={{ gap: "8px" }}>
+        <input
+          type="text"
+          className="native-input flex-1"
+          placeholder="搜索书签标题或 URL..."
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+        />
+        <div style={{ display: "flex", gap: "6px" }}>
+          <button className="native-btn native-btn-sm" disabled={syncing} onClick={handlePullRemoteBookmarks}>
+            📥 拉取云书签
+          </button>
+          <button className="native-btn native-btn-sm native-btn-subtle" disabled={syncing} onClick={handlePushLocalBookmarks}>
+            📤 推送书签
+          </button>
+          <button className="native-btn native-btn-sm native-btn-subtle" disabled={loading} onClick={loadBookmarks}>
+            刷新
+          </button>
+        </div>
+      </div>
+
+      {/* 书签卡片列表 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, overflowY: "auto" }}>
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
+            {loading ? "正在读取浏览器书签树..." : "未找到匹配的书签记录"}
+          </div>
+        ) : (
+          filtered.map((item, idx) => (
+            <div key={idx} className="native-card-subtle flex-between" style={{ padding: "6px 10px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflow: "hidden", flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>🔖</span>
+                  <span style={{ fontWeight: 600, fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {item.title || item.url}
+                  </span>
+                </div>
+                <div style={{ fontSize: "10px", color: "var(--text-dimmed)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {item.url}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "4px", marginLeft: "8px" }}>
+                <button
+                  className="native-btn native-btn-sm native-btn-subtle"
+                  title="复制 URL"
+                  onClick={() => handleCopy(item.url)}>
+                  📋 复制
+                </button>
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="native-btn native-btn-sm"
+                  style={{ textDecoration: "none" }}>
+                  🔗 打开
+                </a>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 };
