@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from "react";
+import { getDiscoveredDevices } from "~storage/discoveredDevices";
 import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
 import { runFullSync } from "~utils/sync/engine";
 import { exportBookmarksTree, extractBookmarkUrls } from "~utils/sync/handlers/bookmarks";
+import type { DeviceInfo } from "~utils/sync/provider";
 
 export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) => {
-  const [bookmarks, setBookmarks] = useState<{ title: string; url: string }[]>([]);
+  const [bookmarks, setBookmarks] = useState<{ title: string; url: string; deviceId?: string; deviceName?: string }[]>([]);
+  const [discoveredDevices, setDiscoveredDevices] = useState<DeviceInfo[]>([]);
+  const [selectedDeviceFilter, setSelectedDeviceFilter] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filterText, setFilterText] = useState("");
@@ -23,9 +27,24 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
 
   const loadBookmarks = async () => {
     setLoading(true);
-    const tree = await exportBookmarksTree();
+    const [tree, syncSet, devices] = await Promise.all([
+      exportBookmarksTree(),
+      getSyncSettings(),
+      getDiscoveredDevices(),
+    ]);
+
     const map = extractBookmarkUrls(tree);
-    setBookmarks(Array.from(map.values()));
+    const deviceId = syncSet.deviceId || "local";
+    const deviceName = syncSet.deviceName || "此设备";
+
+    const taggedBookmarks = Array.from(map.values()).map((b) => ({
+      ...b,
+      deviceId,
+      deviceName,
+    }));
+
+    setBookmarks(taggedBookmarks);
+    setDiscoveredDevices(devices);
     setLoading(false);
   };
 
@@ -87,9 +106,11 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
   };
 
   const query = (searchQuery || filterText).toLowerCase().trim();
-  const filtered = bookmarks.filter(
-    (b) => b.title.toLowerCase().includes(query) || b.url.toLowerCase().includes(query),
-  );
+  const filtered = bookmarks.filter((b) => {
+    const matchesSearch = b.title.toLowerCase().includes(query) || b.url.toLowerCase().includes(query);
+    const matchesDevice = selectedDeviceFilter === "all" || b.deviceId === selectedDeviceFilter;
+    return matchesSearch && matchesDevice;
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", height: "100%", overflowY: "auto" }}>
@@ -119,7 +140,7 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
         </div>
       </div>
 
-      {/* 搜索与同步 Bar */}
+      {/* 搜索、设备切分与同步 Bar */}
       <div className="native-card flex-between" style={{ gap: "8px" }}>
         <input
           type="text"
@@ -128,7 +149,20 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
         />
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600 }}>设备过滤:</span>
+          <select
+            className="native-select"
+            value={selectedDeviceFilter}
+            onChange={(e) => setSelectedDeviceFilter(e.target.value)}>
+            <option value="all">🌐 全量设备书签</option>
+            {discoveredDevices.map((d) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                💻 {d.deviceName} ({d.deviceId.slice(0, 6)}...)
+              </option>
+            ))}
+          </select>
+
           <button className="native-btn native-btn-sm" disabled={syncing} onClick={handlePullRemoteBookmarks}>
             📥 拉取云书签
           </button>
@@ -156,6 +190,7 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
                   <span style={{ fontWeight: 600, fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {item.title || item.url}
                   </span>
+                  {item.deviceName && <span className="native-badge native-badge-blue">🏷️ {item.deviceName}</span>}
                 </div>
                 <div style={{ fontSize: "10px", color: "var(--text-dimmed)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {item.url}
