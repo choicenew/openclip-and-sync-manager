@@ -1,22 +1,5 @@
-import {
-  Box,
-  CloseButton,
-  Divider,
-  Group,
-  Paper,
-  Progress,
-  RingProgress,
-  Skeleton,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-  useMantineTheme,
-} from "@mantine/core";
-import { modals } from "@mantine/modals";
-import { IconCloud, IconDatabase, IconFileText, IconServer } from "@tabler/icons-react";
 import { useAtom } from "jotai";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 
 import { entriesAtom, storageUsageAtom } from "~popup/states/atoms";
 import {
@@ -26,10 +9,8 @@ import {
   getPerformanceScore,
   getPerformanceStatus,
 } from "~utils/storageUsage";
-import { defaultBorderColor, lightOrDark } from "~utils/sx";
 
-export const StorageUsageModalContent = () => {
-  const theme = useMantineTheme();
+export const StorageUsageModalContent: React.FC = () => {
   const [entries] = useAtom(entriesAtom);
   const [usage, setUsage] = useAtom(storageUsageAtom);
 
@@ -38,190 +19,65 @@ export const StorageUsageModalContent = () => {
   }, [entries]);
 
   return (
-    <Paper p="md">
-      <Group align="center" position="apart" mb="xs">
-        <Title order={5}>{chrome.i18n.getMessage("commonStorageUsage")}</Title>
-        <CloseButton onClick={() => modals.closeAll()} />
-      </Group>
+    <div className="native-card" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div className="flex-between">
+        <span style={{ fontWeight: 700, fontSize: "14px" }}>📊 存储容量与性能统计</span>
+      </div>
 
-      <Stack spacing="md" mt="md">
-        {/* Total Storage Overview - Simplified */}
-        <Paper p="sm" withBorder>
-          <Group position="apart">
-            <Group spacing="xs">
-              <ThemeIcon size="md" radius="md" variant="light" color="indigo">
-                <IconDatabase size="1rem" />
-              </ThemeIcon>
-              <Box>
-                <Text size="xs" color="dimmed">
-                  Storage Used
-                </Text>
-                {!usage ? (
-                  <Skeleton height={26} width={120} mt={2} />
-                ) : (
-                  <Group spacing={4}>
-                    <Text size="md" weight={600}>
-                      {formatBytes(usage.totalSize)}
-                    </Text>
-                    <Text size="sm" color="dimmed">
-                      • {usage.itemCount.toLocaleString()} items
-                    </Text>
-                  </Group>
-                )}
-              </Box>
-            </Group>
+      {!usage ? (
+        <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "20px" }}>计算占用容量中...</div>
+      ) : (
+        <>
+          {/* 总量概览 */}
+          <div className="native-card-subtle flex-between" style={{ padding: "12px" }}>
+            <div>
+              <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>已用总存储容量</div>
+              <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--primary-color)" }}>
+                {formatBytes(usage.totalSize)} <span style={{ fontSize: "12px", color: "var(--text-dimmed)" }}>({usage.itemCount} 条)</span>
+              </div>
+            </div>
+            <span className="native-badge native-badge-blue">已连接 DB</span>
+          </div>
 
-            {!usage ? (
-              <Skeleton circle height={60} />
-            ) : (
-              <RingProgress
-                size={60}
-                thickness={6}
-                sections={[
-                  {
-                    value: usage.totalSize && (usage.localSize / usage.totalSize) * 100,
-                    color: lightOrDark(theme, "indigo.5", "indigo.7"),
-                  },
-                  {
-                    value: usage.totalSize && (usage.cloudSize / usage.totalSize) * 100,
-                    color: lightOrDark(theme, "cyan.5", "cyan.7"),
-                  },
-                ]}
-              />
-            )}
-          </Group>
-        </Paper>
+          {/* 本地 vs 云端分布 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div className="native-card-subtle" style={{ padding: "10px" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>💻 本地 Local 存储</div>
+              <div style={{ fontSize: "15px", fontWeight: 700 }}>{formatBytes(usage.localSize)}</div>
+              <div style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>{usage.localItemCount} 条记录</div>
+            </div>
 
-        {/* Storage Breakdown */}
-        <Group grow>
-          <Paper p="sm" withBorder>
-            <Group spacing="xs" mb="xs">
-              <ThemeIcon size="sm" radius="md" variant="light" color="indigo">
-                <IconServer size="1rem" />
-              </ThemeIcon>
-              <Text size="sm" weight={500}>
-                Local
-              </Text>
-            </Group>
-            {!usage ? (
-              <>
-                <Skeleton height={28} width={90} />
-                <Skeleton height={14} width={50} mt={4} />
-              </>
-            ) : (
-              <>
-                <Text size="xl" weight={700} color={lightOrDark(theme, "indigo.6", "indigo.4")}>
-                  {formatBytes(usage.localSize)}
-                </Text>
-                <Text size="xs" color="dimmed">
-                  {usage.localItemCount.toLocaleString()} items
-                </Text>
-              </>
-            )}
-          </Paper>
+            <div className="native-card-subtle" style={{ padding: "10px" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>☁️ 云端 Cloud 存储</div>
+              <div style={{ fontSize: "15px", fontWeight: 700 }}>{formatBytes(usage.cloudSize)}</div>
+              <div style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>{usage.cloudItemCount} 条记录</div>
+            </div>
+          </div>
 
-          <Paper p="sm" withBorder>
-            <Group spacing="xs" mb="xs">
-              <ThemeIcon size="sm" radius="md" variant="light" color="cyan">
-                <IconCloud size="1rem" />
-              </ThemeIcon>
-              <Text size="sm" weight={500}>
-                Cloud
-              </Text>
-            </Group>
-            {!usage ? (
-              <>
-                <Skeleton height={28} width={90} />
-                <Skeleton height={14} width={50} mt={4} />
-              </>
-            ) : (
-              <>
-                <Text size="xl" weight={700} color={lightOrDark(theme, "cyan.6", "cyan.4")}>
-                  {formatBytes(usage.cloudSize)}
-                </Text>
-                <Text size="xs" color="dimmed">
-                  {usage.cloudItemCount.toLocaleString()} items
-                </Text>
-              </>
-            )}
-          </Paper>
-        </Group>
+          {/* 均值与最大记录 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div className="native-card-subtle" style={{ padding: "8px" }}>
+              <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>平均单条容量：</span>
+              <span style={{ fontWeight: 600, fontSize: "11px" }}>{formatBytes(usage.averageItemSize)}</span>
+            </div>
+            <div className="native-card-subtle" style={{ padding: "8px" }}>
+              <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>最大单条记录：</span>
+              <span style={{ fontWeight: 600, fontSize: "11px" }}>{formatBytes(usage.largestItemSize)}</span>
+            </div>
+          </div>
 
-        <Divider sx={(theme) => ({ borderColor: defaultBorderColor(theme) })} />
-
-        {/* Item Statistics */}
-        <Stack spacing="xs">
-          <Text size="sm" weight={600}>
-            Item Statistics
-          </Text>
-          <Group grow>
-            <Paper p="xs" withBorder>
-              <Group spacing={4}>
-                <ThemeIcon size="xs" radius="md" variant="light" color="gray">
-                  <IconFileText size="0.8rem" />
-                </ThemeIcon>
-                <Text size="xs" color="dimmed">
-                  Average Size
-                </Text>
-              </Group>
-              {!usage ? (
-                <Skeleton height={18} width={70} />
-              ) : (
-                <Text size="sm" weight={600}>
-                  {formatBytes(usage.averageItemSize)}
-                </Text>
-              )}
-            </Paper>
-            <Paper p="xs" withBorder>
-              <Group spacing={4}>
-                <ThemeIcon size="xs" radius="md" variant="light" color="gray">
-                  <IconFileText size="0.8rem" />
-                </ThemeIcon>
-                <Text size="xs" color="dimmed">
-                  Largest Item
-                </Text>
-              </Group>
-              {!usage ? (
-                <Skeleton height={18} width={70} />
-              ) : (
-                <Text size="sm" weight={600}>
-                  {formatBytes(usage.largestItemSize)}
-                </Text>
-              )}
-            </Paper>
-          </Group>
-        </Stack>
-
-        <Divider sx={(theme) => ({ borderColor: defaultBorderColor(theme) })} />
-
-        {/* Performance Impact */}
-        <Stack spacing="xs">
-          <Group position="apart">
-            <Text size="sm" weight={600}>
-              Performance Impact
-            </Text>
-            {!usage ? (
-              <Skeleton height={16} width={50} />
-            ) : (
-              <Text size="xs" color={getPerformanceColor(usage)} weight={500}>
-                {getPerformanceStatus(usage)}
-              </Text>
-            )}
-          </Group>
-          <Progress
-            value={Math.min(getPerformanceScore(usage) * 100, 100)}
-            size="lg"
-            radius="md"
-            color={usage && getPerformanceColor(usage)}
-            animate
-          />
-          <Text size="xs" color="dimmed">
-            The extension supports unlimited storage and is optimized to handle large collections
-            efficiently, but performance may degrade with excessive items. Removing old entries
-            helps maintain optimal speed.
-          </Text>
-        </Stack>
-      </Stack>
-    </Paper>
+          {/* 性能评估 */}
+          <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div className="flex-between">
+              <span style={{ fontWeight: 600, fontSize: "11px" }}>性能影响评估 (Performance)</span>
+              <span className="native-badge">{getPerformanceStatus(usage)}</span>
+            </div>
+            <div style={{ fontSize: "10px", color: "var(--text-dimmed)", lineHeight: "1.4" }}>
+              插件底层索引已针对海量剪贴板进行内存优化，支持无上限容纳。删除极旧或超长无用记录有助于保持极致的响应速度。
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 };

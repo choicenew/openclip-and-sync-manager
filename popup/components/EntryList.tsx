@@ -1,8 +1,5 @@
-import { Box, Checkbox, Divider, Group, rem, Stack, Text, Title, Tooltip } from "@mantine/core";
-import { modals } from "@mantine/modals";
-import { IconFold, IconPin, IconStar, IconTrash } from "@tabler/icons-react";
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
+import React, { useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { FixedSizeList } from "react-window";
 
@@ -14,12 +11,9 @@ import { addFavoriteEntryIds, deleteFavoriteEntryIds } from "~storage/favoriteEn
 import { addPinnedEntryIds, deletePinnedEntryIds } from "~storage/pinnedEntryIds";
 import type { Entry } from "~types/entry";
 import { deleteEntries } from "~utils/storage";
-import { defaultBorderColor } from "~utils/sx";
 
-import { CommonActionIcon } from "./CommonActionIcon";
 import { EntryRow } from "./EntryRow";
 import { KeyboardHint } from "./KeyboardHint";
-import { MergeModalContent } from "./modals/MergeModalContent";
 
 interface Props {
   entries: Entry[];
@@ -42,17 +36,17 @@ const EntryRowRenderer = ({
   const entry = data.entries[index]!;
 
   return (
-    <Box style={style}>
+    <div style={style}>
       <EntryRow
         entry={entry}
         selectedEntryIds={data.selectedEntryIds}
         isKeyboardSelected={index === data.selectedEntryIndex}
       />
-    </Box>
+    </div>
   );
 };
 
-export const EntryList = ({ entries, noEntriesOverlay }: Props) => {
+export const EntryList: React.FC<Props> = ({ entries, noEntriesOverlay }) => {
   const favoriteEntryIds = useAtomValue(favoriteEntryIdsAtom) || [];
   const favoriteEntryIdsSet = new Set<string>(favoriteEntryIds);
   const pinnedEntryIds = useAtomValue(pinnedEntryIdsAtom) || [];
@@ -67,118 +61,95 @@ export const EntryList = ({ entries, noEntriesOverlay }: Props) => {
     selectedEntryIds.clear();
   }, [entryIdsStringified]);
 
+  const handleBatchDelete = () => {
+    if (selectedEntryIds.size === 0) return;
+    if (window.confirm(`确定要彻底删除选中的 ${selectedEntryIds.size} 条记录吗？`)) {
+      handleMutation(() =>
+        deleteEntries(
+          Array.from(selectedEntryIds).filter(
+            (selectedEntryId) => !favoriteEntryIdsSet.has(selectedEntryId),
+          ),
+        ),
+      )();
+      selectedEntryIds.clear();
+    }
+  };
+
   return (
-    <Stack
-      h="100%"
-      spacing={0}
-      sx={(theme) => ({
-        borderStyle: "solid",
-        borderWidth: "1px",
-        borderColor: defaultBorderColor(theme),
-        borderRadius: theme.radius.sm,
-      })}
-    >
-      <Group align="center" spacing="sm" noWrap px="sm" h={32}>
-        <Checkbox
-          size="xs"
-          sx={(theme) => ({
-            ".mantine-Checkbox-input:hover": {
-              borderColor: theme.fn.primaryColor(),
-            },
-          })}
-          checked={selectedEntryIds.size > 0 && selectedEntryIds.size === entries.length}
-          indeterminate={selectedEntryIds.size > 0 && selectedEntryIds.size < entries.length}
-          onChange={() =>
-            selectedEntryIds.size === 0
-              ? entries.forEach((entry) => selectedEntryIds.add(entry.id))
-              : selectedEntryIds.clear()
-          }
-        />
-        <Group align="center" w="100%" position="apart">
-          <Group align="center" spacing={0}>
-            <Tooltip label={<Text fz="xs">Pin / Unpin</Text>} disabled={selectedEntryIds.size === 0}>
-              <CommonActionIcon
-                disabled={selectedEntryIds.size === 0}
-                onClick={handleMutation(() =>
-                  Array.from(selectedEntryIds).every((selectedEntryId) =>
-                    pinnedEntryIdsSet.has(selectedEntryId),
-                  )
-                    ? deletePinnedEntryIds(Array.from(selectedEntryIds))
-                    : addPinnedEntryIds(Array.from(selectedEntryIds)),
-                )}
-              >
-                <IconPin size="1rem" />
-              </CommonActionIcon>
-            </Tooltip>
-            <Tooltip label={<Text fz="xs">Favorite</Text>} disabled={selectedEntryIds.size === 0}>
-              <CommonActionIcon
-                disabled={selectedEntryIds.size === 0}
-                onClick={handleMutation(() =>
-                  Array.from(selectedEntryIds).every((selectedEntryId) =>
-                    favoriteEntryIdsSet.has(selectedEntryId),
-                  )
-                    ? deleteFavoriteEntryIds(Array.from(selectedEntryIds))
-                    : addFavoriteEntryIds(Array.from(selectedEntryIds)),
-                )}
-              >
-                <IconStar size="1rem" />
-              </CommonActionIcon>
-            </Tooltip>
-            <Tooltip label={<Text fz="xs">Delete</Text>} disabled={selectedEntryIds.size === 0}>
-              <CommonActionIcon
-                disabled={selectedEntryIds.size === 0}
-                onClick={() =>
-                  modals.openConfirmModal({
-                    title: <Title order={5}>Delete Items</Title>,
-                    children: (
-                      <Text fz="xs" mb="xs">
-                        Are you sure you want to delete all selected items? Favorited items will not
-                        be deleted.
-                      </Text>
-                    ),
-                    labels: { confirm: "Delete", cancel: "Cancel" },
-                    confirmProps: { color: "red", size: "xs" },
-                    cancelProps: { size: "xs" },
-                    onConfirm: handleMutation(() =>
-                      deleteEntries(
-                        Array.from(selectedEntryIds).filter(
-                          (selectedEntryId) => !favoriteEntryIdsSet.has(selectedEntryId),
-                        ),
-                      ),
-                    ),
-                  })
-                }
-              >
-                <IconTrash size="1rem" />
-              </CommonActionIcon>
-            </Tooltip>
-            <Tooltip label={<Text fz="xs">合并选中的多条剪贴板记录</Text>} disabled={selectedEntryIds.size < 2}>
-              <CommonActionIcon
-                disabled={selectedEntryIds.size < 2}
-                onClick={() =>
-                  modals.open({
-                    padding: 0,
-                    size: "xl",
-                    withCloseButton: false,
-                    children: (
-                      <MergeModalContent
-                        initialEntries={entries.filter((entry) => selectedEntryIds.has(entry.id))}
-                      />
-                    ),
-                  })
-                }
-              >
-                <IconFold size="1rem" />
-              </CommonActionIcon>
-            </Tooltip>
-          </Group>
-          <Text fz="xs">
-            {selectedEntryIds.size} of {entries.length} selected
-          </Text>
-        </Group>
-      </Group>
-      <Divider sx={(theme) => ({ borderColor: defaultBorderColor(theme) })} />
-      <Box sx={{ flex: "auto" }}>
+    <div
+      className="native-card"
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        padding: 0,
+        overflow: "hidden",
+      }}>
+      {/* 顶部工具栏 Toolbar */}
+      <div
+        className="flex-between"
+        style={{
+          height: "32px",
+          padding: "0 10px",
+          borderBottom: "1px solid var(--border-color)",
+          backgroundColor: "rgba(0, 0, 0, 0.02)",
+        }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <input
+            type="checkbox"
+            checked={selectedEntryIds.size > 0 && selectedEntryIds.size === entries.length}
+            onChange={() =>
+              selectedEntryIds.size === 0
+                ? entries.forEach((entry) => selectedEntryIds.add(entry.id))
+                : selectedEntryIds.clear()
+            }
+          />
+
+          <button
+            className="native-btn native-btn-sm native-btn-subtle"
+            disabled={selectedEntryIds.size === 0}
+            title="固定 / 解除固定"
+            onClick={handleMutation(() =>
+              Array.from(selectedEntryIds).every((selectedEntryId) =>
+                pinnedEntryIdsSet.has(selectedEntryId),
+              )
+                ? deletePinnedEntryIds(Array.from(selectedEntryIds))
+                : addPinnedEntryIds(Array.from(selectedEntryIds)),
+            )}>
+            📌 固定
+          </button>
+
+          <button
+            className="native-btn native-btn-sm native-btn-subtle"
+            disabled={selectedEntryIds.size === 0}
+            title="收藏 / 移出收藏"
+            onClick={handleMutation(() =>
+              Array.from(selectedEntryIds).every((selectedEntryId) =>
+                favoriteEntryIdsSet.has(selectedEntryId),
+              )
+                ? deleteFavoriteEntryIds(Array.from(selectedEntryIds))
+                : addFavoriteEntryIds(Array.from(selectedEntryIds)),
+            )}>
+            ⭐ 收藏
+          </button>
+
+          <button
+            className="native-btn native-btn-sm"
+            style={{ backgroundColor: "#ef4444" }}
+            disabled={selectedEntryIds.size === 0}
+            title="批量彻底删除"
+            onClick={handleBatchDelete}>
+            🗑️ 删除
+          </button>
+        </div>
+
+        <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
+          已选 {selectedEntryIds.size} / 共 {entries.length} 条
+        </div>
+      </div>
+
+      {/* 主列表滚动区域 */}
+      <div style={{ flex: 1, position: "relative" }}>
         {entries.length === 0 ? (
           noEntriesOverlay
         ) : (
@@ -190,30 +161,33 @@ export const EntryList = ({ entries, noEntriesOverlay }: Props) => {
                 width={width}
                 itemData={{ entries, selectedEntryIds, selectedEntryIndex }}
                 itemCount={entries.length}
-                itemSize={33}
-              >
+                itemSize={33}>
                 {EntryRowRenderer}
               </FixedSizeList>
             )}
           </AutoSizer>
         )}
-      </Box>
+      </div>
+
+      {/* 底部按键提示面板 */}
       {(entries.length > 0 || search.length > 0) && (
-        <>
-          <Divider sx={(theme) => ({ borderColor: defaultBorderColor(theme) })} />
-          {/* The extra padding offsets the list viewport so its overflow cut lands mid-row
-              instead of on a row divider, which would stack against the divider above. */}
-          <Group align="center" spacing="md" noWrap px="sm" py={rem(6)}>
-            {entries.length > 0 && (
-              <>
-                <KeyboardHint keys={["↑", "↓"]} label="Navigate" />
-                <KeyboardHint keys={["↵"]} label="Copy" />
-              </>
-            )}
-            {search.length > 0 && <KeyboardHint keys={["Esc"]} label="Clear search" />}
-          </Group>
-        </>
+        <div
+          className="flex-between"
+          style={{
+            padding: "4px 10px",
+            borderTop: "1px solid var(--border-color)",
+            backgroundColor: "rgba(0, 0, 0, 0.02)",
+            fontSize: "11px",
+          }}>
+          {entries.length > 0 && (
+            <div style={{ display: "flex", gap: "10px" }}>
+              <KeyboardHint keys={["↑", "↓"]} label="选择" />
+              <KeyboardHint keys={["↵"]} label="复制" />
+            </div>
+          )}
+          {search.length > 0 && <KeyboardHint keys={["Esc"]} label="清空搜索" />}
+        </div>
       )}
-    </Stack>
+    </div>
   );
 };

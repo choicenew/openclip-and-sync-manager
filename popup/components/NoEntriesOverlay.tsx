@@ -1,5 +1,4 @@
-import { Stack, Text } from "@mantine/core";
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 
 interface Props {
   title: ReactNode;
@@ -7,20 +6,12 @@ interface Props {
   description?: ReactNode;
 }
 
-export const NoEntriesOverlay = ({ title, subtitle, description }: Props) => {
+export const NoEntriesOverlay: React.FC<Props> = ({ title, subtitle, description }) => {
   return (
-    <Stack align="center" spacing={0} p="xl">
-      <Text size="md">{title}</Text>
-      {subtitle && (
-        <Text size="sm" color="dimmed">
-          {subtitle}
-        </Text>
-      )}
-      {description && (
-        <Text size="xs" color="dimmed">
-          {description}
-        </Text>
-      )}
-    </Stack>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "30px", gap: "4px", textAlign: "center" }}>
+      <div style={{ fontSize: "14px", fontWeight: 600 }}>{title}</div>
+      {subtitle && <div style={{ fontSize: "12px", color: "var(--text-dimmed)" }}>{subtitle}</div>}
+      {description && <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>{description}</div>}
+    </div>
   );
 };

@@ -1,29 +1,28 @@
-import { Group, Kbd, rem, Text } from "@mantine/core";
+import React from "react";
 
 interface Props {
   keys: string[];
   label: string;
 }
 
-export const KeyboardHint = ({ keys, label }: Props) => {
+export const KeyboardHint: React.FC<Props> = ({ keys, label }) => {
   return (
-    <Group align="center" spacing={rem(4)} noWrap sx={{ userSelect: "none" }}>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", userSelect: "none", fontSize: "11px", color: "var(--text-dimmed)" }}>
       {keys.map((key) => (
-        <Kbd
+        <kbd
           key={key}
-          sx={(theme) => ({
-            fontSize: rem(10),
-            lineHeight: 1,
-            padding: `${rem(2)} ${rem(4)}`,
-            color: theme.colors.gray[6],
-          })}
-        >
+          style={{
+            padding: "1px 4px",
+            fontSize: "10px",
+            borderRadius: "3px",
+            border: "1px solid var(--border-color)",
+            backgroundColor: "var(--bg-card)",
+            fontFamily: "monospace",
+          }}>
           {key}
-        </Kbd>
+        </kbd>
       ))}
-      <Text fz="xs" color="dimmed">
-        {label}
-      </Text>
-    </Group>
+      <span>{label}</span>
+    </div>
   );
 };

@@ -1,59 +1,13 @@
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Checkbox,
-  Divider,
-  Group,
-  NumberInput,
-  Paper,
-  PasswordInput,
-  ScrollArea,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Title,
-  useMantineTheme,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
-  IconAlertCircle,
-  IconCheck,
-  IconCloudComputing,
-  IconCrown,
-  IconDevices,
-  IconFilter,
-  IconPlus,
-  IconRefresh,
-  IconAdjustmentsHorizontal,
-  IconShieldCheck,
-  IconShieldLock,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-
-import { getDiscoveredDevices } from "~storage/discoveredDevices";
-import {
-  getMasterDeviceState,
-  setMasterDeviceState,
-  type MasterDeviceState,
-} from "~storage/masterDevice";
+import React, { useEffect, useState } from "react";
+import { getMasterDeviceState, setMasterDeviceState, type MasterDeviceState } from "~storage/masterDevice";
 import { getSettings, setSettings, type Settings } from "~storage/settings";
-import {
-  getSessionNameTemplate,
-  setSessionNameTemplate,
-} from "~storage/syncedSessions";
+import { getSessionNameTemplate, setSessionNameTemplate } from "~storage/syncedSessions";
 import { getSyncSettings, setSyncSettings, type SyncSettings } from "~storage/syncSettings";
 import { runFullSync } from "~utils/sync/engine";
 import { authorizeGoogleOAuth, authorizeOneDriveOAuth } from "~utils/sync/provider";
-import { lightOrDark } from "~utils/sx";
 import { VERSION } from "~utils/version";
 
-export const SettingsPage = () => {
-  const theme = useMantineTheme();
+export const SettingsPage: React.FC = () => {
   const [syncSettings, setSyncSet] = useState<SyncSettings>({
     deviceId: "",
     deviceName: "此电脑",
@@ -64,6 +18,15 @@ export const SettingsPage = () => {
     enableGist: false,
     enableS3: false,
     enableCustomRest: false,
+    providerModalities: {
+      chrome: { clipboard: true, bookmarks: true, sessions: true, history: true, extensions: true },
+      webdav: { clipboard: true, bookmarks: true, sessions: true, history: true, extensions: true },
+      onedrive: { clipboard: true, bookmarks: true, sessions: true, history: true, extensions: true },
+      googledrive: { clipboard: true, bookmarks: true, sessions: true, history: true, extensions: true },
+      gist: { clipboard: true, bookmarks: true, sessions: true, history: true, extensions: true },
+      s3: { clipboard: true, bookmarks: true, sessions: true, history: true, extensions: true },
+      customRest: { clipboard: true, bookmarks: true, sessions: true, history: true, extensions: true },
+    },
     webdavUrl: "",
     webdavUsername: "",
     webdavPassword: "",
@@ -109,6 +72,7 @@ export const SettingsPage = () => {
   const [authorizingGoogle, setAuthorizingGoogle] = useState(false);
   const [newRuleName, setNewRuleName] = useState("");
   const [newRuleKeywords, setNewRuleKeywords] = useState("");
+  const [toastMsg, setToastMsg] = useState("");
 
   const [sessionNameTemplate, setSessionTemplateState] = useState(
     "{YYYY}-{MM}-{DD} {HH}:{mm} - {deviceName} ({tabCount} 标签)",
@@ -125,13 +89,14 @@ export const SettingsPage = () => {
     );
   }, []);
 
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
+
   const handleAuthorizeOneDrive = async () => {
     if (!syncSettings.oneDriveClientId) {
-      notifications.show({
-        title: "错误",
-        message: "请先填写 Microsoft OneDrive Client ID",
-        color: "red",
-      });
+      showToast("请先填写 Microsoft OneDrive Client ID");
       return;
     }
     setAuthorizingOneDrive(true);
@@ -140,18 +105,9 @@ export const SettingsPage = () => {
       const updated = { ...syncSettings, oneDriveAccessToken: token };
       setSyncSet(updated);
       await setSyncSettings(updated);
-      notifications.show({
-        title: "OneDrive 授权成功",
-        message: "已成功连接微软云盘账号！",
-        color: "teal",
-        icon: <IconCheck size={16} />,
-      });
+      showToast("OneDrive 授权成功！");
     } catch (e: any) {
-      notifications.show({
-        title: "OneDrive 授权失败",
-        message: e?.message || "用户取消或授权异常",
-        color: "red",
-      });
+      showToast(e?.message || "OneDrive 授权异常");
     } finally {
       setAuthorizingOneDrive(false);
     }
@@ -159,11 +115,7 @@ export const SettingsPage = () => {
 
   const handleAuthorizeGoogle = async () => {
     if (!syncSettings.googleClientId) {
-      notifications.show({
-        title: "错误",
-        message: "请先填写 Google Drive Client ID",
-        color: "red",
-      });
+      showToast("请先填写 Google Drive Client ID");
       return;
     }
     setAuthorizingGoogle(true);
@@ -172,18 +124,9 @@ export const SettingsPage = () => {
       const updated = { ...syncSettings, googleAccessToken: token };
       setSyncSet(updated);
       await setSyncSettings(updated);
-      notifications.show({
-        title: "Google Drive 授权成功",
-        message: "已成功连接谷歌云盘账号！",
-        color: "teal",
-        icon: <IconCheck size={16} />,
-      });
+      showToast("Google Drive 授权成功！");
     } catch (e: any) {
-      notifications.show({
-        title: "Google Drive 授权失败",
-        message: e?.message || "用户取消或授权异常",
-        color: "red",
-      });
+      showToast(e?.message || "Google Drive 授权异常");
     } finally {
       setAuthorizingGoogle(false);
     }
@@ -196,650 +139,283 @@ export const SettingsPage = () => {
       setMasterDeviceState(masterState),
       setSessionNameTemplate(sessionNameTemplate),
     ]);
-    notifications.show({
-      title: "保存成功",
-      message: "同步设置、会话模板与系统属性已全面更新",
-      color: "teal",
-      icon: <IconCheck size={16} />,
-    });
+    showToast("全部修改已保存！");
   };
 
   const handleTriggerSync = async () => {
     setSyncing(true);
     const res = await runFullSync();
     setSyncing(false);
-
     const updatedState = await getMasterDeviceState();
     setMasterState(updatedState);
-
-    notifications.show({
-      title: res.success ? "同步完成" : "同步提示",
-      message: res.message,
-      color: res.success ? "teal" : "red",
-    });
+    showToast(res.message);
   };
 
   return (
-    <ScrollArea sx={{ flex: 1 }}>
-      <Stack spacing="md" p="xs">
-        <Group position="apart" align="center">
-          <Group spacing="xs">
-            <IconAdjustmentsHorizontal size="1.2rem" color={theme.colors.indigo[6]} />
-            <Title order={5}>OpenClip Sync 系统与同步设置</Title>
-            <Badge size="xs" color="blue">
-              v{VERSION}
-            </Badge>
-          </Group>
-          <Button size="xs" color="indigo" onClick={handleSave}>
-            保存全部修改
-          </Button>
-        </Group>
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "12px", height: "100%", overflowY: "auto" }}>
+      {toastMsg && (
+        <div className="native-card" style={{ backgroundColor: "var(--primary-color)", color: "#fff", padding: "6px 12px", fontSize: "11px" }}>
+          🔔 {toastMsg}
+        </div>
+      )}
 
-        {/* 1. 多云后端支持：完全平铺展开 (无折叠，可多选) */}
-        <Card p="sm" radius="md" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
-          <Stack spacing="xs">
-            <Group spacing="xs">
-              <IconCloudComputing size={18} color={theme.colors.indigo[6]} />
-              <Text fw={600} fz="sm">
-                云端同步 Backend 选项（平铺展开，可同时勾选任意多个服务）
-              </Text>
-            </Group>
+      {/* 头部 Bar */}
+      <div className="native-card flex-between">
+        <div style={{ fontWeight: 700, fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
+          <span>⚙️</span>
+          <span>OpenClip Sync 系统与同步设置</span>
+          <span className="native-badge native-badge-blue">v{VERSION}</span>
+        </div>
+        <button className="native-btn" onClick={handleSave}>
+          💾 保存全部设置
+        </button>
+      </div>
 
-            <Group spacing="md">
-              <Checkbox
-                label="Chrome Sync (谷歌内置同步)"
-                checked={syncSettings.enableChromeSync}
-                onChange={(e) =>
-                  setSyncSet((prev) => ({ ...prev, enableChromeSync: e.currentTarget.checked }))
-                }
-              />
-              <Checkbox
-                label="WebDAV (坚果云/Nextcloud/群晖)"
-                checked={syncSettings.enableWebdav}
-                onChange={(e) =>
-                  setSyncSet((prev) => ({ ...prev, enableWebdav: e.currentTarget.checked }))
-                }
-              />
-              <Checkbox
-                label="OneDrive (微软云盘)"
-                checked={syncSettings.enableOneDrive}
-                onChange={(e) =>
-                  setSyncSet((prev) => ({ ...prev, enableOneDrive: e.currentTarget.checked }))
-                }
-              />
-              <Checkbox
-                label="Google Drive (谷歌云盘)"
-                checked={syncSettings.enableGoogleDrive}
-                onChange={(e) =>
-                  setSyncSet((prev) => ({ ...prev, enableGoogleDrive: e.currentTarget.checked }))
-                }
-              />
-              <Checkbox
-                label="GitHub Gist (代码片段/秘钥云)"
-                checked={syncSettings.enableGist}
-                onChange={(e) =>
-                  setSyncSet((prev) => ({ ...prev, enableGist: e.currentTarget.checked }))
-                }
-              />
-              <Checkbox
-                label="AWS S3 / MinIO (对象存储)"
-                checked={syncSettings.enableS3}
-                onChange={(e) =>
-                  setSyncSet((prev) => ({ ...prev, enableS3: e.currentTarget.checked }))
-                }
-              />
-              <Checkbox
-                label="Custom REST API (自建服务器)"
-                checked={syncSettings.enableCustomRest}
-                onChange={(e) =>
-                  setSyncSet((prev) => ({ ...prev, enableCustomRest: e.currentTarget.checked }))
-                }
-              />
-            </Group>
+      {/* 1. 云端同步 Backend 平铺设置 */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px" }}>☁️ 云端同步 Backend 选项：</div>
 
-            {/* WebDAV 展开表单 */}
-            {syncSettings.enableWebdav && (
-              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
-                <Stack spacing="xs">
-                  <Text fz="xs" fw={600} color="indigo">
-                    WebDAV 服务器参数配置
-                  </Text>
-                  <TextInput
-                    label="WebDAV 服务器 URL"
-                    placeholder="https://dav.nextcloud.com/remote.php/dav/files/user/"
-                    value={syncSettings.webdavUrl || ""}
-                    onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavUrl: e.target.value }))}
-                  />
-                  <Group grow>
-                    <TextInput
-                      label="用户名"
-                      value={syncSettings.webdavUsername || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavUsername: e.target.value }))}
-                    />
-                    <PasswordInput
-                      label="密码 / 应用授权码"
-                      value={syncSettings.webdavPassword || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavPassword: e.target.value }))}
-                    />
-                  </Group>
-                </Stack>
-              </Paper>
-            )}
-
-            {/* OneDrive 展开表单 */}
-            {syncSettings.enableOneDrive && (
-              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
-                <Stack spacing="xs">
-                  <Group position="apart">
-                    <Text fz="xs" fw={600} color="cyan.7">
-                      Microsoft OneDrive 微软云盘配置与授权登录
-                    </Text>
-                    <Badge size="xs" color={syncSettings.oneDriveAccessToken ? "green" : "yellow"}>
-                      {syncSettings.oneDriveAccessToken ? "已授权登录" : "未授权登录"}
-                    </Badge>
-                  </Group>
-                  <Group grow align="flex-end">
-                    <TextInput
-                      label="Application (Client) ID"
-                      placeholder="微软 Azure 注册的应用 Client ID"
-                      value={syncSettings.oneDriveClientId || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, oneDriveClientId: e.target.value }))}
-                    />
-                    <Button
-                      size="xs"
-                      color="cyan"
-                      loading={authorizingOneDrive}
-                      onClick={handleAuthorizeOneDrive}
-                    >
-                      {syncSettings.oneDriveAccessToken ? "重新授权微软账号" : "一键 OAuth 登录授权"}
-                    </Button>
-                  </Group>
-                  <PasswordInput
-                    label="OneDrive Access Token (自动获取或手动填入)"
-                    placeholder="OAuth 登录后自动填入 Token"
-                    value={syncSettings.oneDriveAccessToken || ""}
-                    onChange={(e) => setSyncSet((prev) => ({ ...prev, oneDriveAccessToken: e.target.value }))}
-                  />
-                </Stack>
-              </Paper>
-            )}
-
-            {/* Google Drive 展开表单 */}
-            {syncSettings.enableGoogleDrive && (
-              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
-                <Stack spacing="xs">
-                  <Group position="apart">
-                    <Text fz="xs" fw={600} color="yellow.8">
-                      Google Drive 谷歌云端硬盘配置与授权登录
-                    </Text>
-                    <Badge size="xs" color={syncSettings.googleAccessToken ? "green" : "yellow"}>
-                      {syncSettings.googleAccessToken ? "已授权登录" : "未授权登录"}
-                    </Badge>
-                  </Group>
-                  <Group grow align="flex-end">
-                    <TextInput
-                      label="Google OAuth Client ID"
-                      placeholder="谷歌 Cloud Console 申请的 Client ID"
-                      value={syncSettings.googleClientId || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, googleClientId: e.target.value }))}
-                    />
-                    <Button
-                      size="xs"
-                      color="yellow"
-                      loading={authorizingGoogle}
-                      onClick={handleAuthorizeGoogle}
-                    >
-                      {syncSettings.googleAccessToken ? "重新授权谷歌账号" : "一键 OAuth 登录授权"}
-                    </Button>
-                  </Group>
-                  <PasswordInput
-                    label="Google Access Token (自动获取或手动填入)"
-                    placeholder="OAuth 登录后自动填入 Token"
-                    value={syncSettings.googleAccessToken || ""}
-                    onChange={(e) => setSyncSet((prev) => ({ ...prev, googleAccessToken: e.target.value }))}
-                  />
-                </Stack>
-              </Paper>
-            )}
-
-            {/* GitHub Gist 展开表单 */}
-            {syncSettings.enableGist && (
-              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
-                <Stack spacing="xs">
-                  <Text fz="xs" fw={600} color="indigo">
-                    GitHub Gist 参数配置
-                  </Text>
-                  <Group grow>
-                    <PasswordInput
-                      label="GitHub Personal Access Token"
-                      placeholder="ghp_xxxxxxxxxxxx"
-                      value={syncSettings.gistToken || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, gistToken: e.target.value }))}
-                    />
-                    <TextInput
-                      label="Gist ID (留空则自动创建)"
-                      placeholder="留空将首次推定时自动创建私有 Gist"
-                      value={syncSettings.gistId || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, gistId: e.target.value }))}
-                    />
-                  </Group>
-                </Stack>
-              </Paper>
-            )}
-
-            {/* AWS S3 / MinIO 展开表单 */}
-            {syncSettings.enableS3 && (
-              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
-                <Stack spacing="xs">
-                  <Text fz="xs" fw={600} color="indigo">
-                    AWS S3 / MinIO / 兼容对象存储配置
-                  </Text>
-                  <Group grow>
-                    <TextInput
-                      label="Endpoint 服务地址"
-                      placeholder="https://s3.us-east-1.amazonaws.com 或 http://127.0.0.1:9000"
-                      value={syncSettings.s3Endpoint || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Endpoint: e.target.value }))}
-                    />
-                    <TextInput
-                      label="Bucket 桶名称"
-                      placeholder="my-clip-bucket"
-                      value={syncSettings.s3Bucket || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Bucket: e.target.value }))}
-                    />
-                  </Group>
-                  <Group grow>
-                    <TextInput
-                      label="Access Key ID"
-                      value={syncSettings.s3AccessKeyId || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, s3AccessKeyId: e.target.value }))}
-                    />
-                    <PasswordInput
-                      label="Secret Access Key"
-                      value={syncSettings.s3SecretAccessKey || ""}
-                      onChange={(e) => setSyncSet((prev) => ({ ...prev, s3SecretAccessKey: e.target.value }))}
-                    />
-                  </Group>
-                </Stack>
-              </Paper>
-            )}
-
-            {/* Custom REST API 展开表单 */}
-            {syncSettings.enableCustomRest && (
-              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")} mt="xs">
-                <Stack spacing="xs">
-                  <Text fz="xs" fw={600} color="indigo">
-                    Custom REST API 自建服务器配置
-                  </Text>
-                  <TextInput
-                    label="API Endpoint URL"
-                    placeholder="https://api.my-server.com/v1/sync"
-                    value={syncSettings.customRestUrl || ""}
-                    onChange={(e) => setSyncSet((prev) => ({ ...prev, customRestUrl: e.target.value }))}
-                  />
-                  <PasswordInput
-                    label="Authorization Token (可选)"
-                    placeholder="Bearer token or secret key"
-                    value={syncSettings.customRestToken || ""}
-                    onChange={(e) => setSyncSet((prev) => ({ ...prev, customRestToken: e.target.value }))}
-                  />
-                </Stack>
-              </Paper>
-            )}
-
-            <Button
-              mt="xs"
-              variant="light"
-              color="indigo"
-              size="xs"
-              leftIcon={<IconRefresh size={14} />}
-              loading={syncing}
-              onClick={handleTriggerSync}
-            >
-              测试联机并立即触发全模态同步
-            </Button>
-          </Stack>
-        </Card>
-
-        {/* 2. 主/辅设备属性与自动防抢判定 */}
-        <Card p="sm" radius="md" withBorder bg={lightOrDark(theme, "indigo.0", "dark.6")}>
-          <Stack spacing="xs">
-            <Group spacing="xs">
-              <IconCrown size={18} color={theme.colors.indigo[7]} />
-              <Text fw={600} fz="sm">
-                设备角色与 Master 主设备互斥防抢逻辑
-              </Text>
-            </Group>
-
-            {masterState.isForcedAuxiliary ? (
-              <Alert icon={<IconAlertCircle size={16} />} title="已自动变灰防抢并降级为辅助设备" color="orange">
-                云端目录已存在生效的主设备：
-                <Text fw={600} component="span">
-                  「{masterState.masterDeviceName || masterState.masterDeviceId || "云端主控"}」
-                </Text>
-                。当主设备存在时，本机【设为主设备】开关**自动变灰并禁止抢夺**，严格受主设备规则下发管控。
-              </Alert>
-            ) : (
-              <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.5")}>
-                <Group position="apart">
-                  <Stack spacing={2}>
-                    <Text size="xs" fw={600}>
-                      将本机标记为主设备 (Master Device)
-                    </Text>
-                    <Text size="11px" color="dimmed">
-                      首次标记并同步到云端后，后续其他设备读取该目录时均会自动变灰降级为辅助设备。
-                    </Text>
-                  </Stack>
-                  <Switch
-                    size="md"
-                    color="indigo"
-                    checked={masterState.isMasterDevice}
-                    disabled={masterState.isForcedAuxiliary}
-                    onChange={(e) =>
-                      setMasterState((prev) => ({ ...prev, isMasterDevice: e.currentTarget.checked }))
-                    }
-                  />
-                </Group>
-              </Paper>
-            )}
-          </Stack>
-        </Card>
-
-        {/* 3. 本机属性、自动合并与数据保留策略 */}
-        <Card p="sm" radius="md" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
-          <Stack spacing="xs">
-            <Group spacing="xs">
-              <IconFilter size={18} color={theme.colors.blue[6]} />
-              <Text fw={600} fz="sm">
-                本机属性、合并策略与独立同步模态选择
-              </Text>
-            </Group>
-
-            <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
-              <Group position="apart" align="center">
-                <Stack spacing={2}>
-                  <Text size="xs" fw={600}>
-                    自动合并重复剪贴板记录 (Auto Merge Duplicates)
-                  </Text>
-                  <Text size="11px" color="dimmed">
-                    开启后，复制重复内容时会自动合并并更新为最新的日期时间戳；关闭后将保留每条独立的复制记录。
-                  </Text>
-                </Stack>
-                <Switch
-                  size="md"
-                  color="indigo"
-                  checked={settings.deduplicateEntries !== false}
-                  onChange={(e) =>
-                    setSet((prev: any) => ({ ...prev, deduplicateEntries: e.currentTarget.checked }))
-                  }
-                />
-              </Group>
-            </Paper>
-
-            <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
-              <Stack spacing="xs">
-                <Text size="xs" fw={600} color="indigo">
-                  本机独立数据同步模态选择 (此设备要与云端同步的类型)
-                </Text>
-                <Group spacing="md">
-                  <Checkbox
-                    label="📋 剪贴板 (Clipboard)"
-                    checked={settings.syncModalities?.clipboard !== false}
-                    onChange={(e) =>
-                      setSet((prev: any) => ({
-                        ...prev,
-                        syncModalities: { ...(prev.syncModalities || {}), clipboard: e.currentTarget.checked },
-                      }))
-                    }
-                  />
-                  <Checkbox
-                    label="🔖 书签树 (Bookmarks)"
-                    checked={settings.syncModalities?.bookmarks !== false}
-                    onChange={(e) =>
-                      setSet((prev: any) => ({
-                        ...prev,
-                        syncModalities: { ...(prev.syncModalities || {}), bookmarks: e.currentTarget.checked },
-                      }))
-                    }
-                  />
-                  <Checkbox
-                    label="🌐 会话标签 (Sessions)"
-                    checked={settings.syncModalities?.sessions !== false}
-                    onChange={(e) =>
-                      setSet((prev: any) => ({
-                        ...prev,
-                        syncModalities: { ...(prev.syncModalities || {}), sessions: e.currentTarget.checked },
-                      }))
-                    }
-                  />
-                  <Checkbox
-                    label="📜 浏览历史 (History)"
-                    checked={settings.syncModalities?.history !== false}
-                    onChange={(e) =>
-                      setSet((prev: any) => ({
-                        ...prev,
-                        syncModalities: { ...(prev.syncModalities || {}), history: e.currentTarget.checked },
-                      }))
-                    }
-                  />
-                  <Checkbox
-                    label="🧩 扩展列表 (Extensions)"
-                    checked={settings.syncModalities?.extensions !== false}
-                    onChange={(e) =>
-                      setSet((prev: any) => ({
-                        ...prev,
-                        syncModalities: { ...(prev.syncModalities || {}), extensions: e.currentTarget.checked },
-                      }))
-                    }
-                  />
-                </Group>
-              </Stack>
-            </Paper>
-
-            {/* 会话 Section 时间轴自动备份规则与格式 */}
-            <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
-              <Stack spacing="xs">
-                <Text size="xs" fw={600} color="cyan.8">
-                  🌐 会话 Section 时间轴自动备份规则与命名格式
-                </Text>
-                <Group grow align="flex-end">
-                  <Select
-                    label="定时自动快照间隔"
-                    value={String(settings.sessionAutoSaveIntervalMinutes ?? 30)}
-                    onChange={(val) =>
-                      setSet((prev: any) => ({ ...prev, sessionAutoSaveIntervalMinutes: Number(val) || 0 }))
-                    }
-                    data={[
-                      { label: "关闭定时自动快照", value: "0" },
-                      { label: "每隔 15 分钟保存", value: "15" },
-                      { label: "每隔 30 分钟保存", value: "30" },
-                      { label: "每隔 60 分钟保存", value: "60" },
-                    ]}
-                  />
-                  <Switch
-                    label="启动浏览器时自动保存快照"
-                    size="xs"
-                    color="cyan"
-                    checked={settings.sessionAutoSaveOnStartup !== false}
-                    onChange={(e) =>
-                      setSet((prev: any) => ({ ...prev, sessionAutoSaveOnStartup: e.currentTarget.checked }))
-                    }
-                  />
-                  <Switch
-                    label="关闭浏览器时自动保存快照"
-                    size="xs"
-                    color="cyan"
-                    checked={settings.sessionAutoSaveOnShutdown !== false}
-                    onChange={(e) =>
-                      setSet((prev: any) => ({ ...prev, sessionAutoSaveOnShutdown: e.currentTarget.checked }))
-                    }
-                  />
-                </Group>
-                <TextInput
-                  label="自动备份会话的名称命名格式模板"
-                  description="支持占位符: {YYYY}, {MM}, {DD}, {HH}, {mm}, {deviceName}, {tabCount}"
-                  value={sessionNameTemplate}
-                  onChange={(e) => setSessionTemplateState(e.target.value)}
-                />
-              </Stack>
-            </Paper>
-
-            <Group grow>
-              <TextInput
-                label="本机设备名称"
-                value={syncSettings.deviceName || "此电脑"}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, deviceName: e.target.value }))}
-              />
-              <NumberInput
-                label="剪贴板历史保留天数 (0 为永久)"
-                value={settings.historyRetentionDays || 30}
-                onChange={(val) =>
-                  setSet((prev: Settings) => ({ ...prev, historyRetentionDays: Number(val) || 0 }))
-                }
-              />
-            </Group>
-
-            <NumberInput
-              label="单条剪贴板记录最大字符上限"
-              value={settings.localItemCharacterLimit || 50000}
-              onChange={(val) =>
-                setSet((prev: Settings) => ({
-                  ...prev,
-                  localItemCharacterLimit: Number(val) || 50000,
-                }))
-              }
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", fontSize: "11px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={syncSettings.enableChromeSync}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableChromeSync: e.target.checked }))}
             />
-          </Stack>
-        </Card>
+            <span>Chrome Sync</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={syncSettings.enableWebdav}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableWebdav: e.target.checked }))}
+            />
+            <span>WebDAV</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={syncSettings.enableOneDrive}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableOneDrive: e.target.checked }))}
+            />
+            <span>OneDrive</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={syncSettings.enableGoogleDrive}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableGoogleDrive: e.target.checked }))}
+            />
+            <span>Google Drive</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={syncSettings.enableGist}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableGist: e.target.checked }))}
+            />
+            <span>GitHub Gist</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={syncSettings.enableS3}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableS3: e.target.checked }))}
+            />
+            <span>AWS S3 / MinIO</span>
+          </label>
+        </div>
 
-        {/* 4. 敏感与特定关键词自动拦截/删除规则 */}
-        <Card p="sm" radius="md" withBorder bg={lightOrDark(theme, "gray.0", "dark.7")}>
-          <Stack spacing="xs">
-            <Group position="apart">
-              <Group spacing="xs">
-                <IconShieldLock size={18} color={theme.colors.red[6]} />
-                <Text fw={600} fz="sm">
-                  特定关键词自动拦截与彻底删除策略 (Keyword Auto Delete)
-                </Text>
-              </Group>
-              <Switch
-                size="xs"
-                color="red"
-                checked={!!settings.enableBlacklistFilter}
-                onChange={(e) =>
-                  setSet((prev: any) => ({
-                    ...prev,
-                    enableBlacklistFilter: e.currentTarget.checked,
-                  }))
-                }
+        {/* WebDAV 展开参数 */}
+        {syncSettings.enableWebdav && (
+          <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ fontWeight: 600, fontSize: "11px", color: "var(--primary-color)" }}>WebDAV 服务器配置：</div>
+            <input
+              type="text"
+              className="native-input"
+              placeholder="WebDAV 服务器 URL..."
+              value={syncSettings.webdavUrl || ""}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavUrl: e.target.value }))}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="用户名..."
+                value={syncSettings.webdavUsername || ""}
+                onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavUsername: e.target.value }))}
               />
-            </Group>
-            <Text size="xs" color="dimmed">
-              开启后，当复制内容符合以下包含的特定关键词时，系统将自动拦截并彻底删除，不写入历史与云端同步。
-            </Text>
+              <input
+                type="password"
+                className="native-input flex-1"
+                placeholder="密码 / 授权码..."
+                value={syncSettings.webdavPassword || ""}
+                onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavPassword: e.target.value }))}
+              />
+            </div>
+          </div>
+        )}
 
-            {settings.enableBlacklistFilter && (
-              <Stack spacing="xs" mt="xs">
-                {(settings.blacklistRules || []).map((rule: any, idx: number) => (
-                  <Paper key={rule.id || idx} p="xs" radius="sm" withBorder bg={lightOrDark(theme, "white", "dark.6")}>
-                    <Group position="apart" align="center">
-                      <Stack spacing={2}>
-                        <Group spacing="xs">
-                          <Text fz="xs" fw={600}>
-                            {rule.name}
-                          </Text>
-                          <Switch
-                            size="xs"
-                            color="red"
-                            checked={rule.enabled}
-                            onChange={(e) => {
-                              const updated = (settings.blacklistRules || []).map((r: any) =>
-                                r.id === rule.id ? { ...r, enabled: e.currentTarget.checked } : r
-                              );
-                              setSet((prev: any) => ({ ...prev, blacklistRules: updated }));
-                            }}
-                          />
-                        </Group>
-                        <Text fz="11px" color="dimmed">
-                          匹配关键词：{(rule.keywords || []).join(", ")}
-                        </Text>
-                      </Stack>
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        color="red"
-                        compact
-                        onClick={() => {
-                          const updated = (settings.blacklistRules || []).filter((r: any) => r.id !== rule.id);
-                          setSet((prev: any) => ({ ...prev, blacklistRules: updated }));
-                        }}
-                      >
-                        删除规则
-                      </Button>
-                    </Group>
-                  </Paper>
-                ))}
+        {/* OneDrive 展开参数 */}
+        {syncSettings.enableOneDrive && (
+          <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div className="flex-between">
+              <span style={{ fontWeight: 600, fontSize: "11px" }}>OneDrive 微软云盘配置：</span>
+              <span className={`native-badge ${syncSettings.oneDriveAccessToken ? "native-badge-green" : "native-badge-yellow"}`}>
+                {syncSettings.oneDriveAccessToken ? "已授权" : "未授权"}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="OneDrive Client ID..."
+                value={syncSettings.oneDriveClientId || ""}
+                onChange={(e) => setSyncSet((prev) => ({ ...prev, oneDriveClientId: e.target.value }))}
+              />
+              <button className="native-btn native-btn-sm" disabled={authorizingOneDrive} onClick={handleAuthorizeOneDrive}>
+                {authorizingOneDrive ? "授权中..." : "OAuth 登录授权"}
+              </button>
+            </div>
+          </div>
+        )}
 
-                <Paper p="xs" radius="sm" withBorder bg={lightOrDark(theme, "gray.1", "dark.6")}>
-                  <Stack spacing="xs">
-                    <Text fz="xs" fw={600} color="indigo">
-                      添加新关键词拦截与彻底删除规则
-                    </Text>
-                    <Group grow align="flex-end">
-                      <TextInput
-                        placeholder="规则名称 (如: 支付敏感密码)"
-                        size="xs"
-                        value={newRuleName}
-                        onChange={(e) => setNewRuleName(e.target.value)}
-                      />
-                      <TextInput
-                        placeholder="关键词(英文逗号分隔，如: password, secret)"
-                        size="xs"
-                        value={newRuleKeywords}
-                        onChange={(e) => setNewRuleKeywords(e.target.value)}
-                      />
-                      <Button
-                        size="xs"
-                        color="indigo"
-                        onClick={() => {
-                          if (!newRuleName.trim() || !newRuleKeywords.trim()) return;
-                          const keywords = newRuleKeywords
-                            .split(",")
-                            .map((k) => k.trim())
-                            .filter(Boolean);
-                          const newRule = {
-                            id: "rule_" + Date.now(),
-                            name: newRuleName.trim(),
-                            keywords,
-                            enabled: true,
-                          };
-                          const updated = [...(settings.blacklistRules || []), newRule];
-                          setSet((prev: any) => ({ ...prev, blacklistRules: updated }));
-                          setNewRuleName("");
-                          setNewRuleKeywords("");
-                        }}
-                      >
-                        添加规则
-                      </Button>
-                    </Group>
-                  </Stack>
-                </Paper>
-              </Stack>
-            )}
-          </Stack>
-        </Card>
+        {/* Google Drive 展开参数 */}
+        {syncSettings.enableGoogleDrive && (
+          <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div className="flex-between">
+              <span style={{ fontWeight: 600, fontSize: "11px" }}>Google Drive 谷歌云盘配置：</span>
+              <span className={`native-badge ${syncSettings.googleAccessToken ? "native-badge-green" : "native-badge-yellow"}`}>
+                {syncSettings.googleAccessToken ? "已授权" : "未授权"}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="Google OAuth Client ID..."
+                value={syncSettings.googleClientId || ""}
+                onChange={(e) => setSyncSet((prev) => ({ ...prev, googleClientId: e.target.value }))}
+              />
+              <button className="native-btn native-btn-sm" disabled={authorizingGoogle} onClick={handleAuthorizeGoogle}>
+                {authorizingGoogle ? "授权中..." : "OAuth 登录授权"}
+              </button>
+            </div>
+          </div>
+        )}
 
-        <Divider />
+        <button className="native-btn native-btn-sm" style={{ marginTop: "4px" }} disabled={syncing} onClick={handleTriggerSync}>
+          {syncing ? "同步中..." : "🔄 立即测试联机全模态同步"}
+        </button>
+      </div>
 
-        <Group position="apart">
-          <Text size="xs" color="dimmed">
-            OpenClip Sync v2.6.0 — 100% 独立自主分模态 WebDAV 存储架构
-          </Text>
-          <Button size="sm" color="indigo" onClick={handleSave}>
-            保存全部配置
-          </Button>
-        </Group>
-      </Stack>
-    </ScrollArea>
+      {/* 2. 剪贴板合并与数据保留设置 */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px" }}>📋 剪贴板合并与数据保留策略：</div>
+
+        <div className="flex-between">
+          <span style={{ fontSize: "11px" }}>自动合并重复剪贴板记录 (Deduplicate)</span>
+          <label className="native-switch">
+            <input
+              type="checkbox"
+              checked={settings.deduplicateEntries !== false}
+              onChange={(e) => setSet((prev: any) => ({ ...prev, deduplicateEntries: e.target.checked }))}
+            />
+            <span className="native-slider"></span>
+          </label>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <span style={{ fontSize: "11px", width: "130px" }}>剪贴板历史保留天数:</span>
+          <input
+            type="number"
+            className="native-input flex-1"
+            value={settings.historyRetentionDays || 30}
+            onChange={(e) => setSet((prev: any) => ({ ...prev, historyRetentionDays: Number(e.target.value) || 0 }))}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <span style={{ fontSize: "11px", width: "130px" }}>单条剪贴板最大字符:</span>
+          <input
+            type="number"
+            className="native-input flex-1"
+            value={settings.localItemCharacterLimit || 50000}
+            onChange={(e) => setSet((prev: any) => ({ ...prev, localItemCharacterLimit: Number(e.target.value) || 50000 }))}
+          />
+        </div>
+      </div>
+
+      {/* 3. 关键词自动拦截与敏感词过滤 */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div className="flex-between">
+          <span style={{ fontWeight: 600, fontSize: "12px" }}>🛡️ 特定关键词自动拦截与删除 (Keyword Filter)</span>
+          <label className="native-switch">
+            <input
+              type="checkbox"
+              checked={!!settings.enableBlacklistFilter}
+              onChange={(e) => setSet((prev: any) => ({ ...prev, enableBlacklistFilter: e.target.checked }))}
+            />
+            <span className="native-slider"></span>
+          </label>
+        </div>
+
+        {settings.enableBlacklistFilter && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {(settings.blacklistRules || []).map((rule: any) => (
+              <div key={rule.id} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "11px" }}>{rule.name}</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>关键词: {(rule.keywords || []).join(", ")}</div>
+                </div>
+                <button
+                  className="native-btn native-btn-sm"
+                  style={{ backgroundColor: "#ef4444" }}
+                  onClick={() => {
+                    const updated = (settings.blacklistRules || []).filter((r: any) => r.id !== rule.id);
+                    setSet((prev: any) => ({ ...prev, blacklistRules: updated }));
+                  }}>
+                  删除
+                </button>
+              </div>
+            ))}
+
+            <div className="native-card-subtle flex-between" style={{ gap: "6px" }}>
+              <input
+                type="text"
+                className="native-input"
+                style={{ width: "100px" }}
+                placeholder="规则名称..."
+                value={newRuleName}
+                onChange={(e) => setNewRuleName(e.target.value)}
+              />
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="关键词 (逗号分隔)..."
+                value={newRuleKeywords}
+                onChange={(e) => setNewRuleKeywords(e.target.value)}
+              />
+              <button
+                className="native-btn native-btn-sm"
+                onClick={() => {
+                  if (!newRuleName.trim() || !newRuleKeywords.trim()) return;
+                  const newRule = {
+                    id: "rule_" + Date.now(),
+                    name: newRuleName.trim(),
+                    keywords: newRuleKeywords.split(",").map((k) => k.trim()).filter(Boolean),
+                    enabled: true,
+                  };
+                  setSet((prev: any) => ({ ...prev, blacklistRules: [...(prev.blacklistRules || []), newRule] }));
+                  setNewRuleName("");
+                  setNewRuleKeywords("");
+                }}>
+                + 添加
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
