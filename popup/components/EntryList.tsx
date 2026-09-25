@@ -110,14 +110,34 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
           backgroundColor: "rgba(0, 0, 0, 0.02)",
         }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input
-            type="checkbox"
-            checked={selectedEntryIds.size > 0 && selectedEntryIds.size === safeEntries.length}
-            onChange={() =>
-              selectedEntryIds.size === 0
-                ? safeEntries.forEach((entry) => selectedEntryIds.add(entry.id))
-                : selectedEntryIds.clear()
-            }
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "4px 4px 4px 0",
+              cursor: "pointer",
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (selectedEntryIds.size === 0) {
+                safeEntries.forEach((entry) => selectedEntryIds.add(entry.id));
+              } else {
+                selectedEntryIds.clear();
+              }
+            }}>
+            <input
+              type="checkbox"
+              checked={selectedEntryIds.size > 0 && selectedEntryIds.size === safeEntries.length}
+              onChange={() => {}}
+              style={{
+                width: "16px",
+                height: "16px",
+                cursor: "pointer",
+                accentColor: "var(--primary-color, #6366f1)",
+              }}
+            />
+          </div>
           />
 
           <button

@@ -77,20 +77,35 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
         handleOpenEdit();
       }}
       title="单击复制，双击编辑">
-      {/* 选中 Checkbox */}
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={() => {
+      {/* 选中 Checkbox (放大防误触点击区域) */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "4px 8px 4px 0",
+          cursor: "pointer",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
           if (isSelected) {
             selectedEntryIds.delete(entry.id);
           } else {
             selectedEntryIds.add(entry.id);
           }
-        }}
-        onClick={(e) => e.stopPropagation()}
-        style={{ marginRight: "8px" }}
-      />
+        }}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => {}}
+          style={{
+            width: "16px",
+            height: "16px",
+            cursor: "pointer",
+            accentColor: "var(--primary-color, #6366f1)",
+          }}
+        />
+      </div>
 
       {/* Badge 时间/置顶指示 */}
       <span
