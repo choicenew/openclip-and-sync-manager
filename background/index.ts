@@ -1,3 +1,4 @@
+import { debounce } from "ts-debounce";
 import { match } from "ts-pattern";
 import OFFSCREEN_DOCUMENT_PATH from "url:~offscreen.html";
 
@@ -14,6 +15,7 @@ import { setActionIconAndBadgeBackgroundColor } from "~utils/actionBadge";
 import { watchClipboard, watchCloudEntries } from "~utils/background";
 import db from "~utils/db/core";
 import { autoSaveSessionSnapshot } from "~storage/syncedSessions";
+import { runFullSync } from "~utils/sync/engine";
 import { simplePathBasename } from "~utils/simplePath";
 import { getEntries } from "~utils/storage";
 
@@ -93,19 +95,21 @@ const syncLiveTabGroupsToStorage = async () => {
   }
 };
 
+const debouncedSyncLiveTabGroups = debounce(syncLiveTabGroupsToStorage, 2000);
+
 // 挂载 Chrome 原生 Tab Groups 变动与 Tab 变动事件句柄
 if (typeof chrome !== "undefined") {
   if (chrome.tabGroups) {
-    chrome.tabGroups.onCreated?.addListener(syncLiveTabGroupsToStorage);
-    chrome.tabGroups.onUpdated?.addListener(syncLiveTabGroupsToStorage);
-    chrome.tabGroups.onRemoved?.addListener(syncLiveTabGroupsToStorage);
-    chrome.tabGroups.onMoved?.addListener(syncLiveTabGroupsToStorage);
+    chrome.tabGroups.onCreated?.addListener(debouncedSyncLiveTabGroups);
+    chrome.tabGroups.onUpdated?.addListener(debouncedSyncLiveTabGroups);
+    chrome.tabGroups.onRemoved?.addListener(debouncedSyncLiveTabGroups);
+    chrome.tabGroups.onMoved?.addListener(debouncedSyncLiveTabGroups);
   }
   if (chrome.tabs) {
-    chrome.tabs.onUpdated?.addListener(syncLiveTabGroupsToStorage);
-    chrome.tabs.onRemoved?.addListener(syncLiveTabGroupsToStorage);
-    chrome.tabs.onAttached?.addListener(syncLiveTabGroupsToStorage);
-    chrome.tabs.onDetached?.addListener(syncLiveTabGroupsToStorage);
+    chrome.tabs.onUpdated?.addListener(debouncedSyncLiveTabGroups);
+    chrome.tabs.onRemoved?.addListener(debouncedSyncLiveTabGroups);
+    chrome.tabs.onAttached?.addListener(debouncedSyncLiveTabGroups);
+    chrome.tabs.onDetached?.addListener(debouncedSyncLiveTabGroups);
   }
 }
 
@@ -175,6 +179,9 @@ const setupOffscreenDocument = async () => {
   }
 };
 
+// 确保 Service Worker 启动/被唤醒/被重新加载时立即创建 Offscreen Document 监听剪贴板
+setupOffscreenDocument().catch(() => {});
+
 const setupAction = async () => {
   const [entries, clipboardMonitorIsEnabled] = await Promise.all([
     getEntries(),
@@ -214,11 +221,19 @@ chrome.runtime.onStartup.addListener(async () => {
     syncLiveTabGroupsToStorage(),
     settings.sessionAutoSaveOnStartup && autoSaveSessionSnapshot("启动自动备份").catch(() => {}),
   ]);
-  if (settings.sessionAutoSaveIntervalMinutes > 0 && chrome.alarms) {
-    chrome.alarms.create("auto_save_session_alarm", {
-      periodInMinutes: settings.sessionAutoSaveIntervalMinutes,
+  if (chrome.alarms) {
+    if (settings.sessionAutoSaveIntervalMinutes > 0) {
+      chrome.alarms.create("auto_save_session_alarm", {
+        periodInMinutes: settings.sessionAutoSaveIntervalMinutes,
+      });
+    }
+    // 5 分钟后台自动全量云端双向同步
+    chrome.alarms.create("auto_cloud_sync_alarm", {
+      periodInMinutes: 5,
     });
   }
+  // 启动时静默后台自动同步一次
+  runFullSync().catch(() => {});
 });
 
 if (typeof chrome !== "undefined" && chrome.alarms) {
@@ -228,17 +243,14 @@ if (typeof chrome !== "undefined" && chrome.alarms) {
       if (settings.sessionAutoSaveIntervalMinutes > 0) {
         await autoSaveSessionSnapshot(`定时备份 (${settings.sessionAutoSaveIntervalMinutes}m)`).catch(() => {});
       }
+    } else if (alarm.name === "auto_cloud_sync_alarm") {
+      runFullSync().catch(() => {});
     }
   });
 }
 
 chrome.tabs.onActivated.addListener(async () => {
-  await Promise.all([
-    setupOffscreenDocument(),
-    setupAction(),
-    handleUpdateContextMenusRequest(),
-    syncLiveTabGroupsToStorage(),
-  ]);
+  await setupOffscreenDocument();
 });
 
 chrome.runtime.onSuspend.addListener(async () => {

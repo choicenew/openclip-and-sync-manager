@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import { Err, Ok, Result } from "ts-results";
 import { z } from "zod";
 
@@ -17,7 +16,7 @@ import {
   deleteFavoriteEntryIds,
   getFavoriteEntryIds,
 } from "~storage/favoriteEntryIds";
-import { getPinnedEntryIds } from "~storage/pinnedEntryIds";
+import { deletePinnedEntryIds, getPinnedEntryIds } from "~storage/pinnedEntryIds";
 import { getRefreshToken } from "~storage/refreshToken";
 import { getSettings } from "~storage/settings";
 import { Entry } from "~types/entry";
@@ -26,7 +25,7 @@ import { StorageLocation } from "~types/storageLocation";
 
 import { resolveCloudSettings } from "./cloudSettings";
 import db from "./db/core";
-import { applyLocalItemLimit, getEntryTimestamp, handleEntryIds } from "./entries";
+import { applyLocalItemLimit, getEntryTimestamp } from "./entries";
 
 // Do not change this without a migration.
 const ENTRIES_STORAGE_KEY = "entryIdSetentries";
@@ -35,29 +34,40 @@ const storage = new Storage({
   area: "local",
 });
 
-// Entries are not parsed to optimize for performance. This means corrupted entries will break the
-// extension.
+export const generateEntryId = (content: string): string => {
+  try {
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash |= 0;
+    }
+    const hex = Math.abs(hash).toString(16);
+    return `e_${Date.now()}_${hex}_${Math.random().toString(36).slice(2, 6)}`;
+  } catch {
+    return `e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+};
+
+export const getAllStoredEntries = async (): Promise<Entry[]> => {
+  const entries = await storage.get<Entry[]>(ENTRIES_STORAGE_KEY);
+  return entries || [];
+};
+
 export const watchEntries = (cb: (entries: Entry[]) => void) => {
   return storage.watch({
     [ENTRIES_STORAGE_KEY]: (c) => {
       if (c.newValue === undefined) {
         cb([]);
       } else {
-        const fullList = c.newValue as Entry[];
-        // 限制在内存里的记录条数，绝不在内存中常驻上千条长文本
-        cb(fullList.slice(0, 100));
+        cb((c.newValue as Entry[]) || []);
       }
     },
   });
 };
 
-export const getEntries = async () => {
-  const entries = await storage.get<Entry[]>(ENTRIES_STORAGE_KEY);
-  if (entries === undefined) {
-    return [];
-  }
-  // 在内存中仅保留最近 100 条条目以实现接近 0MB 内存占用
-  return entries.slice(0, 100);
+export const getEntries = async (): Promise<Entry[]> => {
+  return getAllStoredEntries();
 };
 
 export const _setEntries = async (entries: Entry[]) => {
@@ -102,7 +112,7 @@ export const createEntry = async (
   }
 
   const [entries, entryIdToTags, favoriteEntryIds, pinnedEntryIds, settings] = await Promise.all([
-    getEntries(),
+    getAllStoredEntries(),
     getEntryIdToTags(),
     getFavoriteEntryIds(),
     getPinnedEntryIds(),
@@ -125,7 +135,7 @@ export const createEntry = async (
       ...entries.filter((entry) => entry.id !== existingEntry.id),
     ];
   } else {
-    newEntryId = createHash("sha256").update(content).digest("hex");
+    newEntryId = generateEntryId(content);
     nextEntries = [
       {
         id: newEntryId,
@@ -136,12 +146,12 @@ export const createEntry = async (
     ];
   }
 
-  const { entries: finalEntries, deletedEntryIds } = handleEntryIds({
-    entries: nextEntries,
+  const [finalEntries, deletedEntryIds] = applyLocalItemLimit(
+    nextEntries,
+    settings,
     favoriteEntryIds,
     pinnedEntryIds,
-    localItemLimit: settings.localItemLimit,
-  });
+  );
 
   await Promise.all([
     _setEntries(finalEntries),
@@ -154,8 +164,40 @@ export const createEntry = async (
   return Ok(null);
 };
 
+export const updateEntryContent = async (
+  id: string,
+  newContent: string,
+): Promise<Result<null, Error>> => {
+  const sysSettings = await getSettings();
+  if (
+    shouldBlockContentByBlacklist(
+      newContent,
+      sysSettings.enableBlacklistFilter,
+      sysSettings.blacklistRules,
+    )
+  ) {
+    return Err(new Error("Content blocked by blacklist filter rule"));
+  }
+
+  const entries = await getAllStoredEntries();
+  const index = entries.findIndex((e) => e.id === id);
+  if (index === -1) {
+    return Err(new Error("Entry not found"));
+  }
+
+  const updatedEntries = [...entries];
+  updatedEntries[index] = {
+    ...updatedEntries[index],
+    content: newContent,
+    copiedAt: Date.now(),
+  };
+
+  await _setEntries(updatedEntries);
+  return Ok(null);
+};
+
 export const deleteEntries = async (entryIds: string[]): Promise<Result<null, Error>> => {
-  const [entries] = await Promise.all([getEntries()]);
+  const entries = await getAllStoredEntries();
 
   const entryIdsSet = new Set(entryIds);
   const nextEntries = entries.filter((entry) => !entryIdsSet.has(entry.id));

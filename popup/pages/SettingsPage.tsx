@@ -51,6 +51,7 @@ export const SettingsPage: React.FC = () => {
   });
 
   const [settings, setSet] = useState<Settings>({
+    sortOrder: "desc",
     historyRetentionDays: 30,
     localItemCharacterLimit: 50000,
     syncDeviceFilter: "all",
@@ -264,7 +265,7 @@ export const SettingsPage: React.FC = () => {
         {/* 名称格式模板 */}
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
           <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-dimmed)" }}>
-            🏷️ 自动备份会话的名称模板 (占位符: &#123;YYYY&#125;, &#123;MM&#125;, &#123;DD&#125;, &#123;HH&#125;, &#123;mm&#125;, &#123;deviceName&#125;, &#123;tabCount&#125;)：
+            🏷️ 自动备份会话的名称模板 (占位符: {"{YYYY}"}, {"{MM}"}, {"{DD}"}, {"{HH}"}, {"{mm}"}, {"{deviceName}"}, {"{tabCount}"})：
           </div>
           <input
             type="text"
@@ -327,6 +328,14 @@ export const SettingsPage: React.FC = () => {
               onChange={(e) => setSyncSet((prev) => ({ ...prev, enableS3: e.target.checked }))}
             />
             <span>AWS S3 / MinIO</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={syncSettings.enableCustomRest}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableCustomRest: e.target.checked }))}
+            />
+            <span>Custom REST API</span>
           </label>
         </div>
 
@@ -408,6 +417,94 @@ export const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* GitHub Gist 展开参数 */}
+        {syncSettings.enableGist && (
+          <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ fontWeight: 600, fontSize: "11px", color: "var(--primary-color)" }}>GitHub Gist 密钥与存储配置：</div>
+            <input
+              type="password"
+              className="native-input"
+              placeholder="GitHub Personal Access Token (PAT, 需勾选 gist 权限)..."
+              value={syncSettings.gistToken || ""}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, gistToken: e.target.value }))}
+            />
+            <input
+              type="text"
+              className="native-input"
+              placeholder="Gist ID (留空则在首次同步时自动创建专属私有 Gist)..."
+              value={syncSettings.gistId || ""}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, gistId: e.target.value }))}
+            />
+          </div>
+        )}
+
+        {/* AWS S3 / MinIO 展开参数 */}
+        {syncSettings.enableS3 && (
+          <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ fontWeight: 600, fontSize: "11px", color: "var(--primary-color)" }}>AWS S3 / MinIO 对象存储配置：</div>
+            <input
+              type="text"
+              className="native-input"
+              placeholder="S3 Endpoint (例如 https://s3.amazonaws.com 或 http://localhost:9000)..."
+              value={syncSettings.s3Endpoint || ""}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Endpoint: e.target.value }))}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="Bucket 名称..."
+                value={syncSettings.s3Bucket || ""}
+                onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Bucket: e.target.value }))}
+              />
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="Region 区域 (默认 us-east-1)..."
+                value={syncSettings.s3Region || "us-east-1"}
+                onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Region: e.target.value }))}
+              />
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="Access Key ID..."
+                value={syncSettings.s3AccessKeyId || ""}
+                onChange={(e) => setSyncSet((prev) => ({ ...prev, s3AccessKeyId: e.target.value }))}
+              />
+              <input
+                type="password"
+                className="native-input flex-1"
+                placeholder="Secret Access Key..."
+                value={syncSettings.s3SecretAccessKey || ""}
+                onChange={(e) => setSyncSet((prev) => ({ ...prev, s3SecretAccessKey: e.target.value }))}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Custom REST API 展开参数 */}
+        {syncSettings.enableCustomRest && (
+          <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ fontWeight: 600, fontSize: "11px", color: "var(--primary-color)" }}>自建 Custom REST API 端点配置：</div>
+            <input
+              type="text"
+              className="native-input"
+              placeholder="API 端点 URL (例如 https://api.my-server.com/sync)..."
+              value={syncSettings.customRestUrl || ""}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, customRestUrl: e.target.value }))}
+            />
+            <input
+              type="password"
+              className="native-input"
+              placeholder="Authorization Bearer Token (可选)..."
+              value={syncSettings.customRestToken || ""}
+              onChange={(e) => setSyncSet((prev) => ({ ...prev, customRestToken: e.target.value }))}
+            />
+          </div>
+        )}
+
         <button className="native-btn native-btn-sm" style={{ marginTop: "4px" }} disabled={syncing} onClick={handleTriggerSync}>
           {syncing ? "同步中..." : "🔄 立即测试联机全模态同步"}
         </button>
@@ -425,6 +522,17 @@ export const SettingsPage: React.FC = () => {
             value={syncSettings.deviceName || "此电脑"}
             onChange={(e) => setSyncSet((prev) => ({ ...prev, deviceName: e.target.value }))}
           />
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <span style={{ fontSize: "11px", width: "130px" }}>默认排序方式:</span>
+          <select
+            className="native-select flex-1"
+            value={settings.sortOrder || "desc"}
+            onChange={(e) => setSet((prev: any) => ({ ...prev, sortOrder: e.target.value }))}>
+            <option value="desc">最新在前 (倒序，默认推荐)</option>
+            <option value="asc">最旧在前 (正序)</option>
+          </select>
         </div>
 
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>

@@ -73,10 +73,10 @@ export const EditEntryModalContent = ({ entry }: Props) => {
   const connectionStatus = db.useConnectionStatus();
 
   useEffect(() => {
-    if (entry.id.length === 36 && auth.user && connectionStatus === "closed") {
+    if (entry?.id && entry.id.length === 36 && auth.user && connectionStatus === "closed") {
       modals.closeAll();
     }
-  }, [entry.id.length === 36 && auth.user && connectionStatus === "closed"]);
+  }, [entry?.id, auth.user, connectionStatus]);
 
   return (
     <Paper p="md">

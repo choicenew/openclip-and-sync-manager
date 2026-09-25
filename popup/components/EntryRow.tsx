@@ -1,3 +1,4 @@
+import { modals } from "@mantine/modals";
 import { useAtomValue } from "jotai";
 import React from "react";
 
@@ -16,8 +17,10 @@ import { badgeDateFormatter } from "~utils/date";
 import { getEntryTimestamp } from "~utils/entries";
 
 import { EntryDeleteAction } from "./EntryDeleteAction";
+import { EntryEditAction } from "./EntryEditAction";
 import { EntryFavoriteAction } from "./EntryFavoriteAction";
 import { EntryPinAction } from "./EntryPinAction";
+import { EditEntryModalContent } from "./modals/EditEntryModalContent";
 import { TagBadge } from "./TagBadge";
 import { TagSelect } from "./TagSelect";
 
@@ -41,6 +44,14 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
   const isSelected = selectedEntryIds.has(entry.id);
   const isCurrentCopied = entry.content === clipboardSnapshot?.content;
 
+  const handleOpenEdit = () => {
+    modals.open({
+      withCloseButton: false,
+      padding: 0,
+      children: <EditEntryModalContent entry={entry} />,
+    });
+  };
+
   return (
     <div
       style={{
@@ -60,7 +71,12 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
         cursor: "pointer",
         userSelect: "none",
       }}
-      onClick={() => copyEntry(entry)}>
+      onClick={() => copyEntry(entry)}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        handleOpenEdit();
+      }}
+      title="单击复制，双击编辑">
       {/* 选中 Checkbox */}
       <input
         type="checkbox"
@@ -121,6 +137,7 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
         style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "8px", flexShrink: 0 }}
         onClick={(e) => e.stopPropagation()}>
         <TagSelect entryId={entry.id} />
+        <EntryEditAction entry={entry} />
         <EntryPinAction entryId={entry.id} />
         <EntryFavoriteAction entryId={entry.id} />
         <EntryDeleteAction entryId={entry.id} />

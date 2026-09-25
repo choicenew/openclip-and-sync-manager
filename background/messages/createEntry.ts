@@ -1,7 +1,9 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging";
+import { debounce } from "ts-debounce";
 
 import { getClipboardSnapshot, updateClipboardSnapshot } from "~storage/clipboardSnapshot";
 import { getSettings } from "~storage/settings";
+import { runFullSync } from "~utils/sync/engine";
 import { createEntry, shouldBlockContentByBlacklist } from "~utils/storage";
 
 import { handleUpdateContextMenusRequest } from "./updateContextMenus";
@@ -11,10 +13,15 @@ export interface CreateEntryRequestBody {
   timestamp: number;
 }
 
-// https://www.totaltypescript.com/the-empty-object-type-in-typescript#representing-an-empty-object
+const debouncedAutoSync = debounce(() => {
+  runFullSync().catch(() => {});
+}, 3000);
+
 export type CreateEntryResponseBody = Record<PropertyKey, never>;
 
 export const handleCreateEntryRequest = async (body: CreateEntryRequestBody) => {
+  if (!body || !body.content) return;
+
   const [clipboardSnapshot, settings] = await Promise.all([getClipboardSnapshot(), getSettings()]);
 
   if (
@@ -27,20 +34,18 @@ export const handleCreateEntryRequest = async (body: CreateEntryRequestBody) => 
     return;
   }
 
-  if (clipboardSnapshot === undefined || body.timestamp > clipboardSnapshot.updatedAt) {
-    if (body.content !== clipboardSnapshot?.content) {
-      await Promise.all([
-        updateClipboardSnapshot(body.content),
-        // If we allow blank items then an entry is always created regardless of what the content
-        // is. If we don't, then only create an entry if the content isn't blank.
-        (settings.allowBlankItems || body.content.length > 0) &&
-          (settings.localItemCharacterLimit === null ||
-            body.content.length <= settings.localItemCharacterLimit) &&
-          createEntry(body.content, settings.storageLocation),
-      ]);
+  // 只要剪贴板新内容与最后存储不一致，即刻存入数据库、更新快照并触发后台 3s 静默自动同步
+  if (!clipboardSnapshot || body.content !== clipboardSnapshot.content) {
+    await Promise.all([
+      updateClipboardSnapshot(body.content),
+      (settings.allowBlankItems || body.content.trim().length > 0) &&
+        (settings.localItemCharacterLimit === null ||
+          body.content.length <= settings.localItemCharacterLimit) &&
+        createEntry(body.content, settings.storageLocation),
+    ]);
 
-      handleUpdateContextMenusRequest();
-    }
+    handleUpdateContextMenusRequest();
+    debouncedAutoSync();
   }
 };
 
