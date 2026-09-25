@@ -1,43 +1,42 @@
-# OpenClip Sync (v2.7.6)
+# OpenClip Sync (v2.7.40)
 
-> **跨端主从设备管控 & 多模态多云无损同步浏览器扩展**  
-> 官方 GitHub 仓库：[https://github.com/choicenew/openclip](https://github.com/choicenew/openclip)  
-> 赞助与支持：[Ko-fi Support](https://ko-fi.com/cue322631)
+> **高效、去中心化全模态多端数据同步浏览器扩展**  
+> 🌐 官方 Promo 静态网页：[https://choicenew.github.io/openclip-and-sync-manager/](https://choicenew.github.io/openclip-and-sync-manager/)  
+> 官方 GitHub 仓库：[https://github.com/choicenew/openclip-and-sync-manager](https://github.com/choicenew/openclip-and-sync-manager)  
+> 维护者：[choicenew](https://github.com/choicenew)
 
 ---
 
-## 🌟 核心功能特性
+## 🌟 核心功能特性 (Features)
 
-OpenClip Sync 是一款全功能、高性能的跨端剪贴板与数据同步浏览器扩展。全新架构消除了旧版的冗余与界面混淆，实现了独立的**设备管理墙**与**多云同步 Backend**解耦管控。
+OpenClip Sync 是一款全功能、高性能、去中心化的跨端剪贴板与数据同步浏览器扩展。全新架构消除了传统扩展的重度内存开销与多端冲突，实现极低内存占用与多云无缝备份。
 
-### 1. 5 大模态按设备独立数据源管控矩阵 (5-Modality Master Routing)
-Master 主设备可对任意从属设备（如 Device B、Device C、Device D）进行独立的模态数据源路由配置：
-- 📋 **剪贴板 (Clipboard)**
-- 🌐 **会话标签 (Sessions)**
-- 🔖 **书签 (Bookmarks)**
-- 📜 **浏览历史 (History)**
-- 🧩 **扩展列表 (Extensions)**
+### 1. 📋 多端剪贴板历史与自由调序 (Clipboard History & Custom Sorting)
+- **毫秒级离线捕获**：基于 Chrome MV3 Offscreen 文档高效静默轮询，不漏抓任何复制记录。
+- **正序 / 倒序一键自由调序**：列表工具栏提供 `⇅ 最新在前(降序)` / `⇅ 最旧在前(升序)` 按钮，随心切换展示顺序。
+- **敏感词过滤与黑名单拦截**：支持正则与关键词屏蔽，避免 Token 或密码误存入历史。
 
-支持配置【🌐 全量设备数据源】、【🎯 仅指定目标设备】或【⛔ 禁用拉取】。
+### 2. 🌐 Tab Groups 与会话快照管理 (TSM Compatible Session Manager)
+- **原生对标 Tab Session Manager (TSM)**：支持全局实时侦测标签组变动。
+- **自动定时快照与去重**：支持启动/关闭浏览器自动保存会话快照、定时自动备份与 URL 黑名单排除。
 
-### 2. 主从设备防抢占机制 (Master Device Protection)
-- **主设备控制 (Master)**：掌握跨端设备控制矩阵下发与主动拉取同步策略。
-- **从设备降级 (Auxiliary)**：当云端已被标记主设备时，其余从设备界面开关**自动变灰并禁止抢夺**，确保配置一致性。
-- **设备别名与独立管理**：支持为不同设备自定义别名（如 `MacBook-Pro-Office`、`Home-PC`）。
+### 3. 👑 主辅设备控制流 (Primary / Auxiliary Device Control Flow)
+- **主设备控制 (Master Device)**：掌握跨端设备控制矩阵与主动拉取同步策略。
+- **辅助设备自动降级 (Auxiliary Auto-Demotion)**：检测到云端主设备标记时，辅助设备自动变形并禁止抢夺权限。
 
-### 3. 7 大无损云端 Backend 存储节点 (Multi-Cloud Engine)
-完全平铺直观配置，支持同时启用多种云端存储节点：
-1. **Chrome Sync** — 谷歌账号内置轻量同步
-2. **WebDAV** — 支持坚果云、Nextcloud、群晖 NAS 及自建 WebDAV
-3. **OneDrive** — 微软云盘无缝结合
-4. **Google Drive** — 谷歌云盘 OAuth 极速同步
-5. **GitHub Gist** — 私有代码片段与秘钥存储
-6. **AWS S3 / MinIO** — 企业级与私有云对象存储
-7. **Custom REST API** — 自定义第三方 HTTP API 同步节点
+### 4. ☁️ 7 大无损云端 Backend 存储节点 (Multi-Cloud Storage Engine)
+支持同时开启多个后端，数据直连私有云：
+1. **Chrome Sync** — 谷歌账号内置轻量同步 (自动控制在 8KB 单项上限以内)
+2. **WebDAV** — 支持坚果云、Nextcloud、群晖 NAS 及自建 WebDAV，支持 Gzip 高能文本压缩
+3. **OneDrive** — 微软云盘 Graph API 无缝备份
+4. **Google Drive** — 谷歌云盘 OAuth2 极速同步
+5. **GitHub Gist** — 私有 GitHub Code Snippet 与 Key-Value 存储 (含专属 PAT 与 Gist ID 参数展开卡片)
+6. **AWS S3 / MinIO** — 企业级与私有云对象存储 (含 Endpoint, Bucket, AccessKey, SecretKey 参数展开卡片)
+7. **Custom REST API** — 自建 HTTP/HTTPS REST API 端点同步
 
-### 4. 自动化构建与精美 UI
-- **精美现代 UI**：基于 Plasmo 框架与 Mantine 5 打造，全面更新图标交互。
-- **每周自动编译 Action**：支持 GitHub Action 定时自动编译打包打包发布 (`.github/workflows/weekly-build.yml`)。
+### 5. ⚡ 极低内存开销 (Low Memory Architecture)
+- 过滤 Base64 Data URI 图片，彻底压低 V8 堆内存消耗。
+- 动态 5s Data Cache TTL，闲置时自动回收垃圾。
 
 ---
 
@@ -56,34 +55,20 @@ pnpm dev
 ### 3. 打包生成 Production 扩展包
 ```bash
 pnpm build
-pnpm package
 ```
-打包生成产物将位于 `build/chrome-mv3-prod.zip`。
+编译产物将位于 `build/chrome-mv3-prod`，可直接在 Chrome `chrome://extensions/` 开发者模式下加载测试。
 
 ---
 
-## ⚙️ CI/CD 自动化构建
+## 🚀 GitHub Actions 自动化 CI/CD
 
-项目配置有 `.github/workflows/weekly-build.yml`：
-- **每周定时任务**：每周日 00:00 (UTC) 自动触发构建。
-- **手动触发 (workflow_dispatch)**：可在 GitHub Actions 界面随时手动一键触发编译与打包。
-- **版本号**：自动读取 `package.json` 中的 `version` 保持构建版本一致。
+- **GitHub Pages 部署** (`.github/workflows/deploy-pages.yml`)：自动构建并发布静态 Promo 宣传网页。
+- **版本自动化递增**：每次编译自动递增版本号（当前版本：`v2.7.40`）。
 
 ---
 
-## 📄 开源许可与协议 (Open Source License & Terms)
+## 📄 开源许可与协议 (License)
 
-本项目采用 **OpenClip Sync Public License** 协议开源。任何人均可免费使用与阅读源码，但必须遵守以下强制条款：
+本项目采用 **MIT License** 开源。授权任何人免费使用、学习与二次开发。
 
-1. **保留原始名称 (Original Name Preservation)**  
-   所有基于本项目的二次开发、修改版、分叉仓库 (Fork) 或衍生作品，在所有界面、文档及元数据中**必须保留原始项目名称 "OpenClip Sync"**。
-
-2. **强制代码提交回主库 (Mandatory Pull Request Back)**  
-   任何对本项目进行的修改、功能增强、Bug 修复或衍生代码，**必须通过 Pull Request (PR) 提交回官方主仓库** ([https://github.com/choicenew/openclip](https://github.com/choicenew/openclip)) 以便主库合并与维护。
-
-3. **禁止修改原仓库链接 (Repository Link Integrity)**  
-   不得删除、修改、隐藏或替换界面与文档中指向官方主仓库的链接 ([https://github.com/choicenew/openclip](https://github.com/choicenew/openclip))。
-
----
-
-© 2026 ChoiceNew / OpenClip Sync Team. All Rights Reserved.
+© 2026 ChoiceNew / OpenClip Sync Team. Maintained by [choicenew](https://github.com/choicenew).
