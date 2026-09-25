@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClip Sync - 高效、去中心化全模态多端剪贴板与数据同步扩展</title>
+
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="OpenClip Sync 是一款去中心化、安全高效的浏览器全模态数据同步插件。支持跨设备剪贴板历史同步、WebDAV / OneDrive / Google Drive / GitHub Gist / AWS S3 多云备份、主辅设备控制流与 Tab Groups 会话备份。">
+  <meta name="keywords" content="OpenClip Sync, 剪贴板同步, 剪贴板历史管理器, WebDAV 剪贴板, 多端同步, Chrome 扩展, Tab Session Manager, 去中心化数据同步, Gist 备份, S3 剪贴板">
+  <meta name="author" content="choicenew">
+  <link rel="canonical" href="https://choicenew.github.io/openclip-and-sync-manager/">
+
+  <!-- OpenGraph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://choicenew.github.io/openclip-and-sync-manager/">
+  <meta property="og:title" content="OpenClip Sync - 高效、去中心化全模态多端数据同步扩展">
+  <meta property="og:description" content="全能型去中心化多端同步扩展：剪贴板历史、书签树、Tab Groups 会话与浏览历史，私有 WebDAV / Gist / S3 无缝存储。">
+  <meta property="og:image" content="https://choicenew.github.io/openclip-and-sync-manager/assets/icon.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:title" content="OpenClip Sync - 去中心化全模态数据同步插件">
+  <meta property="twitter:description" content="高效多端剪贴板管理器，支持 WebDAV、Chrome Sync、Gist、S3 无感实时同步。">
+
+  <!-- Structured Data JSON-LD for Google SEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OpenClip Sync",
+    "operatingSystem": "Chrome, Edge, Brave, Firefox, Opera",
+    "applicationCategory": "UtilitiesApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "OpenClip Sync 是一款开源、安全的浏览器全模态数据同步扩展。支持剪贴板历史、书签树、会话组与浏览历史去中心化云备份。"
+  }
+  </script>
+
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --bg-dark: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --text-main: #f8fafc;
+      --text-dimmed: #94a3b8;
+      --accent-teal: #14b8a6;
+      --accent-orange: #f97316;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 8%;
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #818cf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-dimmed);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-main);
+    }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 100px 20px 60px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 20px;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--text-dimmed);
+      margin-bottom: 36px;
+    }
+
+    .cta-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 10px 25px -3px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+
+    /* Features Grid */
+    .features-section {
+      padding: 80px 8%;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 50px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 28px;
+      backdrop-filter: blur(10px);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .card-icon {
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+
+    .card h3 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .card p {
+      font-size: 14px;
+      color: var(--text-dimmed);
+      line-height: 1.6;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 40px 8%;
+      text-align: center;
+      color: var(--text-dimmed);
+      font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 32px; }
+      .hero p { font-size: 15px; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <span>📋</span> OpenClip Sync
+    </div>
+    <ul class="nav-links">
+      <li><a href="#features">核心功能</a></li>
+      <li><a href="#backends">支持后端</a></li>
+      <li><a href="https://github.com/choicenew/openclip-and-sync-manager" target="_blank">GitHub 源码</a></li>
+    </ul>
+  </header>
+
+  <main>
+    <section class="hero">
+      <span class="badge">🚀 去中心化多端数据同步 Chrome / Firefox 扩展</span>
+      <h1>更快、更安全的全模态浏览器数据与剪贴板同步工具</h1>
+      <p>完全掌控属于你自己的私有数据。支持剪贴板历史、书签树、Tab Groups 会话组与浏览历史的私有多云同步。</p>
+      <div class="cta-buttons">
+        <a href="https://github.com/choicenew/openclip-and-sync-manager/releases" target="_blank" class="btn btn-primary">
+          📥 下载扩展安装包 (Releases)
+        </a>
+        <a href="https://github.com/choicenew/openclip-and-sync-manager" target="_blank" class="btn btn-secondary">
+          ⭐ GitHub 源代码
+        </a>
+      </div>
+    </section>
+
+    <section id="features" class="features-section">
+      <h2 class="section-title">全方位强化功能</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">📋</div>
+          <h3>多端剪贴板历史</h3>
+          <p>实时监控剪贴板，支持正序/倒序自由排序、敏感词自动清洗、关键词黑名单过滤与标签分类。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <h3>Tab Groups 会话管理 (TSM)</h3>
+          <p>原生对标 Tab Session Manager，支持自动快照保存、按会话恢复标签组、URL 黑名单过滤与名称模板。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">👑</div>
+          <h3>主辅设备控制流</h3>
+          <p>创新 Master-Slave 架构，主设备一键授权，辅助设备自动限制，防止跨节点非授权拉取。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="backends" class="features-section">
+      <h2 class="section-title">支持的全模态同步后端</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">☁️</div>
+          <h3>WebDAV (坚果云 / Nextcloud)</h3>
+          <p>私有网盘支持，智能 Gzip 文本高能压缩，多设备无缝同步。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔒</div>
+          <h3>GitHub Gist & AWS S3 / MinIO</h3>
+          <p>支持使用 GitHub PAT 私有 Gist 或 S3/MinIO 对象存储作为去中心化同步后端。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3>Chrome Sync / OneDrive / Google Drive</h3>
+          <p>全面兼容各大原生云盘与云服务，数据直连，无任何第三方中间商。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2026 OpenClip Sync. Open Source Project under MIT License.</p>
+    <p style="margin-top: 8px; font-size: 12px;">Maintained by <a href="https://github.com/choicenew" target="_blank" style="color: var(--primary); text-decoration: none;">choicenew</a></p>
+  </footer>
+
+</body>
+</html>

@@ -81,7 +81,7 @@ const syncLiveTabGroupsToStorage = async () => {
             id: t.id,
             title: t.title || t.url || "无标题页",
             url: t.url || "",
-            favIconUrl: t.favIconUrl,
+            favIconUrl: t.favIconUrl && t.favIconUrl.startsWith("http") ? t.favIconUrl : undefined,
           });
         }
       }
