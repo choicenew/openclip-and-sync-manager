@@ -10,6 +10,7 @@ import {
 import { getEntryCommands } from "~storage/entryCommands";
 import { getRefreshToken } from "~storage/refreshToken";
 import { getSettings } from "~storage/settings";
+import { getSyncSettings } from "~storage/syncSettings";
 import { DisplayMode } from "~types/displayMode";
 import { setActionIconAndBadgeBackgroundColor } from "~utils/actionBadge";
 import { watchClipboard, watchCloudEntries } from "~utils/background";
@@ -363,7 +364,6 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
 
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
   if (areaName === "sync" && changes.cloudData) {
-    const { getSyncSettings } = await import("~storage/syncSettings");
     const s = await getSyncSettings();
     if (!s.enableChromeSync) return;
     db.invalidateCache();

@@ -59,7 +59,7 @@ export async function exportCurrentTabs(): Promise<SyncTab[]> {
           url: t.url!,
           title: t.title || t.url,
           pinned: !!t.pinned,
-          favIconUrl: t.favIconUrl,
+          favIconUrl: t.favIconUrl && t.favIconUrl.startsWith("http") ? t.favIconUrl : undefined,
           groupTitle: group?.title,
           groupColor: group?.color as any,
           groupCollapsed: group?.collapsed,
