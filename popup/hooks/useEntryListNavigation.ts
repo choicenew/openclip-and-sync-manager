@@ -58,7 +58,7 @@ export const useEntryListNavigation = (entries: Entry[]) => {
 
       // Modals and dropdowns (tag selects, menus) own the keyboard while open.
       if (
-        modals.modals.length > 0 ||
+        (modals?.modals?.length ?? 0) > 0 ||
         document.querySelector(".mantine-Popover-dropdown, .mantine-Menu-dropdown") !== null
       ) {
         return;
@@ -114,7 +114,7 @@ export const useEntryListNavigation = (entries: Entry[]) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [entries, selectedEntryIndex, search, modals.modals.length, copyEntry, setSearch]);
+  }, [entries, selectedEntryIndex, search, modals?.modals?.length, copyEntry, setSearch]);
 
   return { listRef, selectedEntryIndex };
 };

@@ -372,19 +372,31 @@ export const chromeSyncProvider: SyncProvider = {
     if (!s.enableChromeSync) {
       return;
     }
-    let toPush = data;
-    let json = JSON.stringify(toPush);
-    if (new Blob([json]).size > 7500) {
-      const sorted = [...toPush.entries].sort(
-        (a, b) => (b.copiedAt || b.createdAt) - (a.copiedAt || a.createdAt),
-      );
-      let count = sorted.length;
-      while (count > 0 && new Blob([json]).size > 7500) {
-        count = Math.max(0, count - 5);
-        toPush = { ...toPush, entries: sorted.slice(0, count) };
-        json = JSON.stringify(toPush);
-      }
+
+    // Chrome Sync 专为微型文本设计 (单项 8KB 强限制)。只过滤并同步精简剪贴板，排除大型 Session/History
+    const sorted = [...(data.entries || [])].sort(
+      (a, b) => (b.copiedAt || b.createdAt) - (a.copiedAt || a.createdAt),
+    );
+
+    let count = Math.min(15, sorted.length);
+    let toPushPayload: CloudData = {
+      entries: sorted.slice(0, count),
+      settings: [],
+      devices: [],
+    };
+    let json = JSON.stringify(toPushPayload);
+
+    // 严控在 7,200 字节以下，确保 100% 满足 Chrome 8,192 bytes 单项上限
+    while (count > 0 && new Blob([json]).size > 7200) {
+      count = Math.max(0, count - 2);
+      toPushPayload = {
+        entries: sorted.slice(0, count),
+        settings: [],
+        devices: [],
+      };
+      json = JSON.stringify(toPushPayload);
     }
+
     return new Promise<void>((resolve, reject) => {
       chrome.storage.sync.set({ [CHROME_SYNC_KEY]: json }, () => {
         if (chrome.runtime.lastError) {
@@ -395,8 +407,8 @@ export const chromeSyncProvider: SyncProvider = {
           updateProviderStatus("chrome", {
             status: "success",
             lastSyncTime: Date.now(),
-            message: "Chrome 同步已更新",
-            itemCount: toPush.entries.length,
+            message: "Chrome Sync 同步成功 (精简保存)",
+            itemCount: toPushPayload.entries.length,
           });
           resolve();
         }

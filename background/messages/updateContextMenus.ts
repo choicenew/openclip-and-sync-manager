@@ -138,20 +138,20 @@ export const handleUpdateContextMenusRequest = debounce(async () => {
     enabled: allTags.length > 0,
   });
 
-  reversedEntries.slice(0, 20).forEach((entry) =>
+  reversedEntries.slice(0, 10).forEach((entry) =>
     chrome.contextMenus.create({
       parentId: simplePathJoin("paste", "all"),
       id: simplePathJoin("paste", "all", entry.id),
-      title: entry.content || " ",
+      title: (entry.content || " ").slice(0, 80),
       contexts: ["editable"],
     }),
   );
 
-  favoriteEntries.slice(0, 40).forEach((entry) =>
+  favoriteEntries.slice(0, 10).forEach((entry) =>
     chrome.contextMenus.create({
       parentId: simplePathJoin("paste", "favorites"),
       id: simplePathJoin("paste", "favorites", entry.id),
-      title: entry.content || " ",
+      title: (entry.content || " ").slice(0, 80),
       contexts: ["editable"],
     }),
   );
@@ -160,12 +160,12 @@ export const handleUpdateContextMenusRequest = debounce(async () => {
     cloudEntries
       .slice()
       .sort((a, b) => getEntryTimestamp(b, settings) - getEntryTimestamp(a, settings))
-      .slice(0, 40)
+      .slice(0, 10)
       .forEach((entry) =>
         chrome.contextMenus.create({
           parentId: simplePathJoin("paste", "cloud"),
           id: simplePathJoin("paste", "cloud", entry.id),
-          title: entry.content || " ",
+          title: (entry.content || " ").slice(0, 80),
           contexts: ["editable"],
         }),
       );

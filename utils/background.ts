@@ -12,6 +12,20 @@ export const watchClipboard = (
   let fetching = false;
   let lastContent: string | null = null;
 
+  const getTextarea = (): HTMLTextAreaElement => {
+    let textarea = d.getElementById("offscreen-clipboard-textarea") as HTMLTextAreaElement;
+    if (!textarea) {
+      textarea = d.createElement("textarea");
+      textarea.id = "offscreen-clipboard-textarea";
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.style.top = "-9999px";
+      textarea.style.left = "-9999px";
+      d.body.appendChild(textarea);
+    }
+    return textarea;
+  };
+
   w.addEventListener(
     "paste",
     async (e) => {
@@ -23,7 +37,7 @@ export const watchClipboard = (
 
       const curr = e.clipboardData.getData("text/plain");
 
-      if (curr === lastContent) {
+      if (!curr || curr === lastContent) {
         return;
       }
 
@@ -32,7 +46,7 @@ export const watchClipboard = (
         lastContent = curr;
         await cb(curr);
       } catch (e) {
-        console.log(e);
+        console.error("[PasteEvent] Error:", e);
       } finally {
         pushing = false;
       }
@@ -40,7 +54,7 @@ export const watchClipboard = (
     { capture: true },
   );
 
-  // 优化轮询间隔为 2000ms，极大降低 CPU 与内存 GC 压力
+  // 高效低损耗轮询 (800ms)
   w.setInterval(async () => {
     if (fetching) {
       return;
@@ -48,15 +62,47 @@ export const watchClipboard = (
 
     try {
       fetching = true;
-      if (await getClipboardMonitorIsEnabled()) {
-        d.execCommand("paste");
+      const isEnabled = await getClipboardMonitorIsEnabled();
+      if (!isEnabled) {
+        return;
+      }
+
+      let curr = "";
+
+      // 1. 尝试聚焦隐藏 textarea 并执行 execCommand("paste")
+      const textarea = getTextarea();
+      textarea.value = "";
+      textarea.focus();
+      textarea.select();
+
+      try {
+        const success = d.execCommand("paste");
+        if (success || textarea.value) {
+          curr = textarea.value;
+        }
+      } catch {
+        // Fallback
+      }
+
+      // 2. 若仍无内容，尝试 navigator.clipboard.readText()
+      if (!curr && navigator.clipboard && typeof navigator.clipboard.readText === "function") {
+        try {
+          curr = await navigator.clipboard.readText();
+        } catch {
+          // Fallback
+        }
+      }
+
+      if (curr && curr !== lastContent) {
+        lastContent = curr;
+        await cb(curr);
       }
     } catch (e) {
-      console.log(e);
+      console.error("[WatchClipboard] Polling error:", e);
     } finally {
       fetching = false;
     }
-  }, 2000);
+  }, 800);
 };
 
 export const watchCloudEntries = async (
@@ -66,7 +112,6 @@ export const watchCloudEntries = async (
 ) => {
   let fetching = false;
 
-  // 优化轮询间隔至 60000ms (60s)，极大降减后台背景常驻与 V8 堆内存开销
   w.setInterval(async () => {
     if (fetching) {
       return;
@@ -80,7 +125,7 @@ export const watchCloudEntries = async (
         await cb((result.data.entries as CloudEntry[]) || []);
       }
     } catch (e) {
-      console.log(e);
+      console.error("[WatchCloudEntries] Polling error:", e);
     } finally {
       fetching = false;
     }

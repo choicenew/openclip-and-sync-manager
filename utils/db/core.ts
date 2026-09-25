@@ -159,7 +159,7 @@ let _cache: CloudData | null = null;
 let _connected = false;
 let _cacheTimer: ReturnType<typeof setTimeout> | null = null;
 
-const CACHE_TTL_MS = 30 * 1000; // 30秒无操作后自动置空，及时释放 V8 堆内存
+const CACHE_TTL_MS = 5 * 1000; // 5秒无操作后自动立即清空，彻底回收 V8 堆内存开销
 
 const resetCacheTimer = () => {
   if (_cacheTimer) clearTimeout(_cacheTimer);
@@ -216,7 +216,11 @@ const flushCache = async (): Promise<void> => {
       message: "同步成功",
       itemCount: _cache.entries.length,
     });
-    resetCacheTimer();
+    _cache = null;
+    if (_cacheTimer) {
+      clearTimeout(_cacheTimer);
+      _cacheTimer = null;
+    }
   }
 };
 
@@ -243,25 +247,29 @@ const makeTxEntry = (collection: string, id: string) => ({
 
 // ─── 执行事务 ────────────────────────────────────────────
 const applyOp = (data: CloudData, op: TxOp): void => {
+  if (!data || !op) return;
+  data.entries = data.entries || [];
+  data.settings = data.settings || [];
   const realOp = op.kind === "link" ? op.op : op;
+  if (!realOp) return;
 
   if (realOp.kind === "delete") {
     if (realOp.collection === "entries") {
-      data.entries = data.entries.filter((e) => e.id !== realOp.id);
+      data.entries = data.entries.filter((e) => e && e.id !== realOp.id);
     }
     return;
   }
 
   if (realOp.kind === "update") {
     if (realOp.collection === "entries") {
-      const idx = data.entries.findIndex((e) => e.id === realOp.id);
+      const idx = data.entries.findIndex((e) => e && e.id === realOp.id);
       if (idx >= 0) {
         data.entries[idx] = { ...data.entries[idx]!, ...(realOp.data as any) };
       } else {
         data.entries.push({ id: realOp.id, emailContentHash: realOp.id, ...(realOp.data as any) } as any);
       }
     } else if (realOp.collection === "settings") {
-      const idx = data.settings.findIndex((s) => s.id === realOp.id);
+      const idx = data.settings.findIndex((s) => s && s.id === realOp.id);
       if (idx >= 0) {
         data.settings[idx] = { ...data.settings[idx]!, ...(realOp.data as any) };
       } else {
@@ -312,17 +320,20 @@ const db = {
       settings: [],
     };
 
+    if (!query) return { data: result };
+
     for (const [collection, opts] of Object.entries(query)) {
       const where = (opts as any)?.$?.where as Record<string, unknown> | undefined;
       let items: unknown[];
 
       if (collection === "entries") {
-        items = data.entries.filter((e) => {
+        items = (data?.entries || []).filter((e) => {
+          if (!e) return false;
           if (!where) return true;
           return Object.entries(where).every(([k, v]) => (e as any)[k] === v);
         });
       } else if (collection === "settings") {
-        items = data.settings;
+        items = data?.settings || [];
       } else if (collection === "subscriptions") {
         const provider = await getActiveProvider();
         const available = provider ? await provider.isAvailable() : false;
@@ -339,7 +350,7 @@ const db = {
 
   async transact(ops: TxOp | TxOp[]) {
     const data = await ensureCache();
-    const list = Array.isArray(ops) ? ops : [ops];
+    const list = Array.isArray(ops) ? ops : ops ? [ops] : [];
     list.forEach((op) => applyOp(data, op));
     await flushCache();
   },
