@@ -96,6 +96,35 @@ export const SettingsPage: React.FC = () => {
     );
   }, []);
 
+  const updateSettings = (updater: (prev: Settings) => Settings) => {
+    setSet((prev) => {
+      const next = updater(prev);
+      setSettings(next).catch(() => {});
+      return next;
+    });
+  };
+
+  const updateSyncSettings = (updater: (prev: SyncSettings) => SyncSettings) => {
+    setSyncSet((prev) => {
+      const next = updater(prev);
+      setSyncSettings(next).catch(() => {});
+      return next;
+    });
+  };
+
+  const updateMasterState = (updater: (prev: MasterDeviceState) => MasterDeviceState) => {
+    setMasterState((prev) => {
+      const next = updater(prev);
+      setMasterDeviceState(next).catch(() => {});
+      return next;
+    });
+  };
+
+  const updateSessionTemplate = (value: string) => {
+    setSessionTemplateState(value);
+    setSessionNameTemplate(value).catch(() => {});
+  };
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3000);
@@ -189,7 +218,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={settings.sessionAutoSaveOnStartup !== false}
-              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionAutoSaveOnStartup: e.target.checked }))}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, sessionAutoSaveOnStartup: e.target.checked }))}
             />
             <span>启动浏览器时自动保存 Section 快照</span>
           </label>
@@ -198,7 +227,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={settings.sessionAutoSaveOnShutdown !== false}
-              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionAutoSaveOnShutdown: e.target.checked }))}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, sessionAutoSaveOnShutdown: e.target.checked }))}
             />
             <span>关闭浏览器时自动保存 Section 快照</span>
           </label>
@@ -207,7 +236,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={settings.deduplicateEntries !== false}
-              onChange={(e) => setSet((prev: any) => ({ ...prev, deduplicateEntries: e.target.checked }))}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, deduplicateEntries: e.target.checked }))}
             />
             <span>自动去重合并完全相同的 Section 快照</span>
           </label>
@@ -217,7 +246,7 @@ export const SettingsPage: React.FC = () => {
             <select
               className="native-select"
               value={settings.sessionAutoSaveIntervalMinutes ?? 30}
-              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionAutoSaveIntervalMinutes: Number(e.target.value) }))}>
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, sessionAutoSaveIntervalMinutes: Number(e.target.value) }))}>
               <option value={0}>关闭定时备份</option>
               <option value={15}>每 15 分钟</option>
               <option value={30}>每 30 分钟</option>
@@ -232,7 +261,7 @@ export const SettingsPage: React.FC = () => {
               className="native-input"
               style={{ width: "60px" }}
               value={settings.sessionMinTabCount ?? 1}
-              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionMinTabCount: Number(e.target.value) }))}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, sessionMinTabCount: Number(e.target.value) }))}
             />
           </div>
 
@@ -241,7 +270,7 @@ export const SettingsPage: React.FC = () => {
             <select
               className="native-select"
               value={settings.sessionSaveWindowMode || "current"}
-              onChange={(e) => setSet((prev: any) => ({ ...prev, sessionSaveWindowMode: e.target.value }))}>
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, sessionSaveWindowMode: e.target.value }))}>
               <option value="current">仅保存当前窗口</option>
               <option value="all">保存所有打开的窗口</option>
             </select>
@@ -258,7 +287,7 @@ export const SettingsPage: React.FC = () => {
             rows={3}
             style={{ fontSize: "11px", fontFamily: "monospace" }}
             value={settings.sessionIgnoreUrls || ""}
-            onChange={(e) => setSet((prev: any) => ({ ...prev, sessionIgnoreUrls: e.target.value }))}
+            onChange={(e) => updateSettings((prev: any) => ({ ...prev, sessionIgnoreUrls: e.target.value }))}
           />
         </div>
 
@@ -271,7 +300,7 @@ export const SettingsPage: React.FC = () => {
             type="text"
             className="native-input"
             value={sessionNameTemplate}
-            onChange={(e) => setSessionTemplateState(e.target.value)}
+            onChange={(e) => updateSessionTemplate(e.target.value)}
           />
         </div>
       </div>
@@ -285,7 +314,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={syncSettings.enableChromeSync}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableChromeSync: e.target.checked }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, enableChromeSync: e.target.checked }))}
             />
             <span>Chrome Sync</span>
           </label>
@@ -293,7 +322,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={syncSettings.enableWebdav}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableWebdav: e.target.checked }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, enableWebdav: e.target.checked }))}
             />
             <span>WebDAV</span>
           </label>
@@ -301,7 +330,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={syncSettings.enableOneDrive}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableOneDrive: e.target.checked }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, enableOneDrive: e.target.checked }))}
             />
             <span>OneDrive</span>
           </label>
@@ -309,7 +338,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={syncSettings.enableGoogleDrive}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableGoogleDrive: e.target.checked }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, enableGoogleDrive: e.target.checked }))}
             />
             <span>Google Drive</span>
           </label>
@@ -317,7 +346,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={syncSettings.enableGist}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableGist: e.target.checked }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, enableGist: e.target.checked }))}
             />
             <span>GitHub Gist</span>
           </label>
@@ -325,7 +354,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={syncSettings.enableS3}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableS3: e.target.checked }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, enableS3: e.target.checked }))}
             />
             <span>AWS S3 / MinIO</span>
           </label>
@@ -333,7 +362,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={syncSettings.enableCustomRest}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, enableCustomRest: e.target.checked }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, enableCustomRest: e.target.checked }))}
             />
             <span>Custom REST API</span>
           </label>
@@ -348,7 +377,7 @@ export const SettingsPage: React.FC = () => {
               className="native-input"
               placeholder="WebDAV 服务器 URL..."
               value={syncSettings.webdavUrl || ""}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavUrl: e.target.value }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, webdavUrl: e.target.value }))}
             />
             <div style={{ display: "flex", gap: "8px" }}>
               <input
@@ -356,14 +385,14 @@ export const SettingsPage: React.FC = () => {
                 className="native-input flex-1"
                 placeholder="用户名..."
                 value={syncSettings.webdavUsername || ""}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavUsername: e.target.value }))}
+                onChange={(e) => updateSyncSettings((prev) => ({ ...prev, webdavUsername: e.target.value }))}
               />
               <input
                 type="password"
                 className="native-input flex-1"
                 placeholder="密码 / 授权码..."
                 value={syncSettings.webdavPassword || ""}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, webdavPassword: e.target.value }))}
+                onChange={(e) => updateSyncSettings((prev) => ({ ...prev, webdavPassword: e.target.value }))}
               />
             </div>
           </div>
@@ -384,7 +413,7 @@ export const SettingsPage: React.FC = () => {
                 className="native-input flex-1"
                 placeholder="OneDrive Client ID..."
                 value={syncSettings.oneDriveClientId || ""}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, oneDriveClientId: e.target.value }))}
+                onChange={(e) => updateSyncSettings((prev) => ({ ...prev, oneDriveClientId: e.target.value }))}
               />
               <button className="native-btn native-btn-sm" disabled={authorizingOneDrive} onClick={handleAuthorizeOneDrive}>
                 {authorizingOneDrive ? "授权中..." : "OAuth 登录授权"}
@@ -408,7 +437,7 @@ export const SettingsPage: React.FC = () => {
                 className="native-input flex-1"
                 placeholder="Google OAuth Client ID..."
                 value={syncSettings.googleClientId || ""}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, googleClientId: e.target.value }))}
+                onChange={(e) => updateSyncSettings((prev) => ({ ...prev, googleClientId: e.target.value }))}
               />
               <button className="native-btn native-btn-sm" disabled={authorizingGoogle} onClick={handleAuthorizeGoogle}>
                 {authorizingGoogle ? "授权中..." : "OAuth 登录授权"}
@@ -426,14 +455,14 @@ export const SettingsPage: React.FC = () => {
               className="native-input"
               placeholder="GitHub Personal Access Token (PAT, 需勾选 gist 权限)..."
               value={syncSettings.gistToken || ""}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, gistToken: e.target.value }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, gistToken: e.target.value }))}
             />
             <input
               type="text"
               className="native-input"
               placeholder="Gist ID (留空则在首次同步时自动创建专属私有 Gist)..."
               value={syncSettings.gistId || ""}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, gistId: e.target.value }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, gistId: e.target.value }))}
             />
           </div>
         )}
@@ -447,7 +476,7 @@ export const SettingsPage: React.FC = () => {
               className="native-input"
               placeholder="S3 Endpoint (例如 https://s3.amazonaws.com 或 http://localhost:9000)..."
               value={syncSettings.s3Endpoint || ""}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Endpoint: e.target.value }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, s3Endpoint: e.target.value }))}
             />
             <div style={{ display: "flex", gap: "8px" }}>
               <input
@@ -455,14 +484,14 @@ export const SettingsPage: React.FC = () => {
                 className="native-input flex-1"
                 placeholder="Bucket 名称..."
                 value={syncSettings.s3Bucket || ""}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Bucket: e.target.value }))}
+                onChange={(e) => updateSyncSettings((prev) => ({ ...prev, s3Bucket: e.target.value }))}
               />
               <input
                 type="text"
                 className="native-input flex-1"
                 placeholder="Region 区域 (默认 us-east-1)..."
                 value={syncSettings.s3Region || "us-east-1"}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, s3Region: e.target.value }))}
+                onChange={(e) => updateSyncSettings((prev) => ({ ...prev, s3Region: e.target.value }))}
               />
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
@@ -471,14 +500,14 @@ export const SettingsPage: React.FC = () => {
                 className="native-input flex-1"
                 placeholder="Access Key ID..."
                 value={syncSettings.s3AccessKeyId || ""}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, s3AccessKeyId: e.target.value }))}
+                onChange={(e) => updateSyncSettings((prev) => ({ ...prev, s3AccessKeyId: e.target.value }))}
               />
               <input
                 type="password"
                 className="native-input flex-1"
                 placeholder="Secret Access Key..."
                 value={syncSettings.s3SecretAccessKey || ""}
-                onChange={(e) => setSyncSet((prev) => ({ ...prev, s3SecretAccessKey: e.target.value }))}
+                onChange={(e) => updateSyncSettings((prev) => ({ ...prev, s3SecretAccessKey: e.target.value }))}
               />
             </div>
           </div>
@@ -493,14 +522,14 @@ export const SettingsPage: React.FC = () => {
               className="native-input"
               placeholder="API 端点 URL (例如 https://api.my-server.com/sync)..."
               value={syncSettings.customRestUrl || ""}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, customRestUrl: e.target.value }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, customRestUrl: e.target.value }))}
             />
             <input
               type="password"
               className="native-input"
               placeholder="Authorization Bearer Token (可选)..."
               value={syncSettings.customRestToken || ""}
-              onChange={(e) => setSyncSet((prev) => ({ ...prev, customRestToken: e.target.value }))}
+              onChange={(e) => updateSyncSettings((prev) => ({ ...prev, customRestToken: e.target.value }))}
             />
           </div>
         )}
@@ -520,7 +549,7 @@ export const SettingsPage: React.FC = () => {
             type="text"
             className="native-input flex-1"
             value={syncSettings.deviceName || "此电脑"}
-            onChange={(e) => setSyncSet((prev) => ({ ...prev, deviceName: e.target.value }))}
+            onChange={(e) => updateSyncSettings((prev) => ({ ...prev, deviceName: e.target.value }))}
           />
         </div>
 
@@ -529,7 +558,7 @@ export const SettingsPage: React.FC = () => {
           <select
             className="native-select flex-1"
             value={settings.sortOrder || "desc"}
-            onChange={(e) => setSet((prev: any) => ({ ...prev, sortOrder: e.target.value }))}>
+            onChange={(e) => updateSettings((prev: any) => ({ ...prev, sortOrder: e.target.value }))}>
             <option value="desc">最新在前 (倒序，默认推荐)</option>
             <option value="asc">最旧在前 (正序)</option>
           </select>
@@ -541,7 +570,7 @@ export const SettingsPage: React.FC = () => {
             type="number"
             className="native-input flex-1"
             value={settings.historyRetentionDays || 30}
-            onChange={(e) => setSet((prev: any) => ({ ...prev, historyRetentionDays: Number(e.target.value) || 0 }))}
+            onChange={(e) => updateSettings((prev: any) => ({ ...prev, historyRetentionDays: Number(e.target.value) || 0 }))}
           />
         </div>
 
@@ -551,7 +580,7 @@ export const SettingsPage: React.FC = () => {
             type="number"
             className="native-input flex-1"
             value={settings.localItemCharacterLimit || 50000}
-            onChange={(e) => setSet((prev: any) => ({ ...prev, localItemCharacterLimit: Number(e.target.value) || 50000 }))}
+            onChange={(e) => updateSettings((prev: any) => ({ ...prev, localItemCharacterLimit: Number(e.target.value) || 50000 }))}
           />
         </div>
       </div>
@@ -564,7 +593,7 @@ export const SettingsPage: React.FC = () => {
             <input
               type="checkbox"
               checked={!!settings.enableBlacklistFilter}
-              onChange={(e) => setSet((prev: any) => ({ ...prev, enableBlacklistFilter: e.target.checked }))}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, enableBlacklistFilter: e.target.checked }))}
             />
             <span className="native-slider"></span>
           </label>
@@ -583,7 +612,7 @@ export const SettingsPage: React.FC = () => {
                   style={{ backgroundColor: "#ef4444" }}
                   onClick={() => {
                     const updated = (settings.blacklistRules || []).filter((r: any) => r.id !== rule.id);
-                    setSet((prev: any) => ({ ...prev, blacklistRules: updated }));
+                    updateSettings((prev: any) => ({ ...prev, blacklistRules: updated }));
                   }}>
                   删除
                 </button>
@@ -616,7 +645,7 @@ export const SettingsPage: React.FC = () => {
                     keywords: newRuleKeywords.split(",").map((k) => k.trim()).filter(Boolean),
                     enabled: true,
                   };
-                  setSet((prev: any) => ({ ...prev, blacklistRules: [...(prev.blacklistRules || []), newRule] }));
+                  updateSettings((prev: any) => ({ ...prev, blacklistRules: [...(prev.blacklistRules || []), newRule] }));
                   setNewRuleName("");
                   setNewRuleKeywords("");
                 }}>
