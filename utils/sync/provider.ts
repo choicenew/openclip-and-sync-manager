@@ -310,10 +310,53 @@ export const mergeCloudData = (local: CloudData, remote: CloudData): CloudData =
   for (const s of remote.settings || []) if (s?.id) sMap.set(s.id, s);
   for (const s of local.settings || []) if (s?.id) sMap.set(s.id, s);
 
+  // 非破坏性无损多模态合并（书签、历史、会话、扩展）
+  const getDevIds = (item: any): string[] => {
+    if (Array.isArray(item.deviceIds) && item.deviceIds.length > 0) return item.deviceIds;
+    if (item.deviceId) return [item.deviceId];
+    return [];
+  };
+
+  const mergeArrayByUrl = (a?: any[], b?: any[]) => {
+    const map = new Map<string, any>();
+    for (const item of a || []) if (item && item.url) map.set(item.url, { ...item, deviceIds: getDevIds(item) });
+    for (const item of b || []) if (item && item.url) {
+      const existing = map.get(item.url);
+      const bDevs = getDevIds(item);
+      const combinedDevs = existing ? Array.from(new Set([...getDevIds(existing), ...bDevs])) : bDevs;
+      map.set(item.url, existing ? { ...existing, ...item, deviceId: existing.deviceId || item.deviceId, deviceName: existing.deviceName || item.deviceName, deviceIds: combinedDevs } : { ...item, deviceIds: bDevs });
+    }
+    return Array.from(map.values());
+  };
+
+  const mergeSessionsArray = (a?: any[], b?: any[]) => {
+    const map = new Map<string, any>();
+    for (const s of a || []) if (s && s.id) map.set(s.id, { ...s });
+    for (const s of b || []) if (s && s.id) map.set(s.id, { ...s });
+    return Array.from(map.values());
+  };
+
+  const mergeExtsArray = (a?: any[], b?: any[]) => {
+    const map = new Map<string, any>();
+    for (const e of a || []) if (e && e.id) map.set(e.id, { ...e, deviceIds: getDevIds(e) });
+    for (const e of b || []) if (e && e.id) {
+      const existing = map.get(e.id);
+      const bDevs = getDevIds(e);
+      const combinedDevs = existing ? Array.from(new Set([...getDevIds(existing), ...bDevs])) : bDevs;
+      map.set(e.id, existing ? { ...existing, ...e, deviceId: existing.deviceId || e.deviceId, deviceName: existing.deviceName || e.deviceName, deviceIds: combinedDevs } : { ...e, deviceIds: bDevs });
+    }
+    return Array.from(map.values());
+  };
+
   const mergedData: CloudData = {
     entries: Array.from(contentMap.values()),
     settings: Array.from(sMap.values()),
     devices: [...(local.devices || []), ...(remote.devices || [])],
+    bookmarks: mergeArrayByUrl(local.bookmarks, remote.bookmarks),
+    history: mergeArrayByUrl(local.history, remote.history),
+    sessions: mergeSessionsArray(local.sessions, remote.sessions),
+    extensions: mergeExtsArray(local.extensions, remote.extensions),
+    masterLock: local.masterLock || remote.masterLock,
   };
 
   mergedData.devices = extractDiscoveredDevices(mergedData);
