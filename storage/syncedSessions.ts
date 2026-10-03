@@ -12,10 +12,11 @@ export async function getSyncedSessions(): Promise<SyncSession[]> {
   return data || [];
 }
 
-/** 生成 Session 的所有 Tab URL 指纹用于精准去重判断 */
+/** 生成 Session 的所有 Tab URL 指纹用于精准去重判断 (带上设备 ID，防止误吞其他设备的会话) */
 export function getSessionTabsFingerprint(session: SyncSession): string {
   if (!session || !session.tabs) return "";
-  return session.tabs
+  const dev = session.deviceId || "unknown";
+  return `${dev}|` + session.tabs
     .map((t) => t.url)
     .filter(Boolean)
     .sort()

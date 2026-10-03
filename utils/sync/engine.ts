@@ -6,7 +6,7 @@
 
 import { getSettings } from "~storage/settings";
 import { getSyncSettings, setSyncStatus } from "~storage/syncSettings";
-import { setSyncedSessions } from "~storage/syncedSessions";
+import { getSyncedSessions, setSyncedSessions } from "~storage/syncedSessions";
 import { getLocalAsCloudData, saveCloudDataToLocal } from "~utils/db/core";
 import { exportBookmarksTree, syncRemoteBookmarksToLocal, type SyncBookmark } from "./handlers/bookmarks";
 import { exportExtensions, type SyncExtension } from "./handlers/extensions";
@@ -23,12 +23,80 @@ export interface MultiModalSyncPayload extends CloudData {
   masterLock?: any;
 }
 
+/** 多设备会话 Section 去重合并 */
+export function mergeSessions(localSessions: SyncSession[] = [], remoteSessions: SyncSession[] = []): SyncSession[] {
+  const map = new Map<string, SyncSession>();
+  for (const s of remoteSessions) {
+    if (s && s.id && s.tabs?.length > 0) map.set(s.id, s);
+  }
+  for (const s of localSessions) {
+    if (s && s.id && s.tabs?.length > 0) map.set(s.id, s);
+  }
+  const merged = Array.from(map.values());
+  merged.sort((a, b) => new Date(b.savedAt || 0).getTime() - new Date(a.savedAt || 0).getTime());
+  return merged.slice(0, 100);
+}
+
+/** 多设备书签树去重合并 */
+export function mergeBookmarks(localBookmarks: any[] = [], remoteBookmarks: any[] = []): any[] {
+  const map = new Map<string, any>();
+  for (const b of remoteBookmarks) {
+    if (b && b.url) map.set(b.url, b);
+  }
+  for (const b of localBookmarks) {
+    if (b && b.url) {
+      const existing = map.get(b.url);
+      map.set(b.url, existing ? { ...existing, ...b } : b);
+    }
+  }
+  return Array.from(map.values());
+}
+
+/** 多设备浏览历史合并 */
+export function mergeHistory(localHistory: SyncHistoryItem[] = [], remoteHistory: SyncHistoryItem[] = []): SyncHistoryItem[] {
+  const map = new Map<string, SyncHistoryItem>();
+  for (const h of remoteHistory) {
+    if (h && h.url) map.set(h.url, h);
+  }
+  for (const h of localHistory) {
+    if (h && h.url) {
+      const existing = map.get(h.url);
+      if (existing) {
+        map.set(h.url, {
+          ...existing,
+          title: h.title || existing.title,
+          lastVisitTime: Math.max(existing.lastVisitTime || 0, h.lastVisitTime || 0),
+          visitCount: (existing.visitCount || 1) + (h.visitCount || 1),
+        });
+      } else {
+        map.set(h.url, h);
+      }
+    }
+  }
+  const merged = Array.from(map.values());
+  merged.sort((a, b) => (b.lastVisitTime || 0) - (a.lastVisitTime || 0));
+  return merged.slice(0, 500);
+}
+
+/** 多设备扩展列表合并 */
+export function mergeExtensions(localExts: SyncExtension[] = [], remoteExts: SyncExtension[] = []): SyncExtension[] {
+  const map = new Map<string, SyncExtension>();
+  for (const e of remoteExts) {
+    if (e && e.id) map.set(e.id, e);
+  }
+  for (const e of localExts) {
+    if (e && e.id) map.set(e.id, e);
+  }
+  return Array.from(map.values());
+}
+
 /** 打包本地全模态同步数据 */
 export async function getLocalMultiModalPayload(): Promise<MultiModalSyncPayload> {
-  const [baseCloudData, syncSet, sysSettings] = await Promise.all([
+  const [baseCloudData, syncSet, sysSettings, savedSessions] = await Promise.all([
     getLocalAsCloudData(),
     getSyncSettings(),
     getSettings(),
+    getSyncedSessions(),
   ]);
 
   const deviceId = syncSet.deviceId || "local_device";
@@ -50,12 +118,16 @@ export async function getLocalMultiModalPayload(): Promise<MultiModalSyncPayload
     modalities.extensions ? exportExtensions() : Promise.resolve([]),
   ]);
 
+  const allLocalSessions = currentSession.tabs?.length > 0
+    ? [currentSession, ...savedSessions.filter((s) => s.id !== "local_current")]
+    : savedSessions.filter((s) => s.id !== "local_current");
+
   return {
     ...baseCloudData,
     entries: modalities.clipboard ? baseCloudData.entries : [],
     bookmarks,
     history,
-    sessions: currentSession.tabs?.length > 0 ? [currentSession] : [],
+    sessions: allLocalSessions,
     extensions,
   };
 }
@@ -122,20 +194,25 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
 
     const { processedEntries, masterState } = await processMasterSlaveRulesOnPull(remoteRaw);
 
-    // 2. 剪贴板主数据根据许可范围进行合并
+    // 2. 多模态全局分类合并 (保留主从端各自的会话、历史、书签与扩展)
+    const mergedSessions = mergeSessions(localPayload.sessions, remoteRaw.sessions);
+    const mergedBookmarks = mergeBookmarks(localPayload.bookmarks, remoteRaw.bookmarks);
+    const mergedHistory = mergeHistory(localPayload.history, remoteRaw.history);
+    const mergedExtensions = mergeExtensions(localPayload.extensions, remoteRaw.extensions);
+
     const mergedBase = {
       entries: [...processedEntries, ...(localPayload.entries || [])],
       settings: localPayload.settings || [],
       devices: localPayload.devices || [],
     };
 
-    // 3. 构建推送 payload，如果当前为主设备则附加主设备控制锁数据
+    // 3. 构建全量多模态推送 payload，如果当前为主设备则附加主设备控制锁数据
     const rawPushPayload = await attachMasterLockToPushData({
       ...mergedBase,
-      bookmarks: localPayload.bookmarks,
-      history: localPayload.history,
-      sessions: localPayload.sessions,
-      extensions: localPayload.extensions,
+      bookmarks: mergedBookmarks,
+      history: mergedHistory,
+      sessions: mergedSessions,
+      extensions: mergedExtensions,
     });
 
     // 严格经过双向过滤网格：每个 Provider 独立的模态许可规则
@@ -159,15 +236,15 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
     await provider.push(pushPayload);
     await saveCloudDataToLocal(mergedBase);
 
-    // 4. 后台同步写回书签、会话、历史记录到本机
-    if (remoteRaw?.bookmarks?.length && modalities.bookmarks !== false) {
-      syncRemoteBookmarksToLocal(remoteRaw.bookmarks).catch(() => {});
+    // 4. 后台同步写回书签、会话、历史记录到本机持久化存储
+    if (mergedSessions.length > 0 && modalities.sessions !== false) {
+      await setSyncedSessions(mergedSessions);
     }
-    if (remoteRaw?.sessions?.length && modalities.sessions !== false) {
-      setSyncedSessions(remoteRaw.sessions).catch(() => {});
+    if (mergedBookmarks.length > 0 && modalities.bookmarks !== false) {
+      await syncRemoteBookmarksToLocal(mergedBookmarks);
     }
-    if (remoteRaw?.history?.length && modalities.history !== false) {
-      importHistory(remoteRaw.history).catch(() => {});
+    if (mergedHistory.length > 0 && modalities.history !== false) {
+      await importHistory(mergedHistory);
     }
 
     const statusMsg = masterState.isForcedAuxiliary

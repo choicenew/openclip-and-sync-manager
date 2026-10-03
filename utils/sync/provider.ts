@@ -37,6 +37,11 @@ export interface CloudData {
   entries: CloudEntry[];
   settings: { id: string; cloudItemLimit: number | null }[];
   devices?: DeviceInfo[];
+  bookmarks?: any[];
+  history?: any[];
+  sessions?: any[];
+  extensions?: any[];
+  masterLock?: any;
 }
 
 export interface SyncProvider {
@@ -190,6 +195,12 @@ export const parseRemoteJson = (data: any): CloudData => {
       })).filter((d: any) => !!d.deviceId)
     : [];
 
+  const bookmarks = Array.isArray(data.bookmarks) ? data.bookmarks : [];
+  const history = Array.isArray(data.history) ? data.history : [];
+  const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+  const extensions = Array.isArray(data.extensions) ? data.extensions : [];
+  const masterLock = data.masterLock || undefined;
+
   if (Array.isArray(data.entries)) {
     const parsedData: CloudData = {
       entries: data.entries.map((e: any) => {
@@ -210,6 +221,11 @@ export const parseRemoteJson = (data: any): CloudData => {
       }),
       settings: Array.isArray(data.settings) ? data.settings : [],
       devices: parsedDevices,
+      bookmarks,
+      history,
+      sessions,
+      extensions,
+      masterLock,
     };
     parsedData.devices = extractDiscoveredDevices(parsedData);
     return parsedData;
