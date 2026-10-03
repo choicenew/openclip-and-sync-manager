@@ -27,8 +27,38 @@ export const ExtensionsPage: React.FC<{ searchQuery: string }> = ({ searchQuery 
 
   const loadExtensions = async () => {
     setLoading(true);
-    const list = await exportExtensions();
-    setExtensions(list);
+    const [localList, syncSet, syncedCloudExtensions] = await Promise.all([
+      exportExtensions(),
+      getSyncSettings(),
+      new Promise<any[]>((resolve) => {
+        if (typeof chrome !== "undefined" && chrome.storage?.local) {
+          chrome.storage.local.get("openclip_synced_extensions", (res) =>
+            resolve(res.openclip_synced_extensions || []),
+          );
+        } else {
+          resolve([]);
+        }
+      }),
+    ]);
+
+    const localDeviceId = syncSet.deviceId || "local";
+    const localDeviceName = syncSet.deviceName || "此设备";
+
+    const localTagged = localList.map((e) => ({
+      ...e,
+      deviceId: (e as any).deviceId || localDeviceId,
+      deviceName: (e as any).deviceName || localDeviceName,
+    }));
+
+    const map = new Map<string, SyncExtension & { deviceId?: string; deviceName?: string }>();
+    for (const e of syncedCloudExtensions) {
+      if (e && e.id) map.set(e.id, e);
+    }
+    for (const e of localTagged) {
+      if (e && e.id) map.set(e.id, e);
+    }
+
+    setExtensions(Array.from(map.values()));
     setLoading(false);
   };
 

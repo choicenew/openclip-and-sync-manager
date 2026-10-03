@@ -28,23 +28,44 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
 
   const loadBookmarks = async () => {
     setLoading(true);
-    const [tree, syncSet, devices] = await Promise.all([
+    const [tree, syncSet, devices, syncedCloudBookmarks] = await Promise.all([
       exportBookmarksTree(),
       getSyncSettings(),
       getDiscoveredDevices(),
+      new Promise<any[]>((resolve) => {
+        if (typeof chrome !== "undefined" && chrome.storage?.local) {
+          chrome.storage.local.get("openclip_synced_bookmarks", (res) =>
+            resolve(res.openclip_synced_bookmarks || []),
+          );
+        } else {
+          resolve([]);
+        }
+      }),
     ]);
 
-    const map = extractBookmarkUrls(tree);
-    const deviceId = syncSet.deviceId || "local";
-    const deviceName = syncSet.deviceName || "此设备";
+    const localMap = extractBookmarkUrls(tree);
+    const localDeviceId = syncSet.deviceId || "local";
+    const localDeviceName = syncSet.deviceName || "此设备";
 
-    const taggedBookmarks = Array.from(map.values()).map((b) => ({
+    const localTagged = Array.from(localMap.values()).map((b) => ({
       ...b,
-      deviceId,
-      deviceName,
+      deviceId: (b as any).deviceId || localDeviceId,
+      deviceName: (b as any).deviceName || localDeviceName,
     }));
 
-    setBookmarks(taggedBookmarks);
+    // 合并本地与云端已存的全量书签记录
+    const map = new Map<string, { title: string; url: string; deviceId?: string; deviceName?: string }>();
+    for (const b of syncedCloudBookmarks) {
+      if (b && b.url) map.set(b.url, b);
+    }
+    for (const b of localTagged) {
+      if (b && b.url) {
+        const existing = map.get(b.url);
+        map.set(b.url, existing ? { ...existing, ...b } : b);
+      }
+    }
+
+    setBookmarks(Array.from(map.values()));
     setDiscoveredDevices(devices);
     setLoading(false);
   };

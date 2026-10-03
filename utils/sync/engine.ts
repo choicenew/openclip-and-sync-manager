@@ -67,6 +67,8 @@ export function mergeHistory(localHistory: SyncHistoryItem[] = [], remoteHistory
           title: h.title || existing.title,
           lastVisitTime: Math.max(existing.lastVisitTime || 0, h.lastVisitTime || 0),
           visitCount: (existing.visitCount || 1) + (h.visitCount || 1),
+          deviceId: h.deviceId || existing.deviceId,
+          deviceName: h.deviceName || existing.deviceName,
         });
       } else {
         map.set(h.url, h);
@@ -75,7 +77,7 @@ export function mergeHistory(localHistory: SyncHistoryItem[] = [], remoteHistory
   }
   const merged = Array.from(map.values());
   merged.sort((a, b) => (b.lastVisitTime || 0) - (a.lastVisitTime || 0));
-  return merged.slice(0, 500);
+  return merged;
 }
 
 /** 多设备扩展列表合并 */
@@ -236,15 +238,26 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
     await provider.push(pushPayload);
     await saveCloudDataToLocal(mergedBase);
 
-    // 4. 后台同步写回书签、会话、历史记录到本机持久化存储
+    // 4. 后台同步写回书签、会话、历史记录到本机持久化存储区
     if (mergedSessions.length > 0 && modalities.sessions !== false) {
       await setSyncedSessions(mergedSessions);
     }
     if (mergedBookmarks.length > 0 && modalities.bookmarks !== false) {
       await syncRemoteBookmarksToLocal(mergedBookmarks);
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        await chrome.storage.local.set({ openclip_synced_bookmarks: mergedBookmarks });
+      }
     }
     if (mergedHistory.length > 0 && modalities.history !== false) {
       await importHistory(mergedHistory);
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        await chrome.storage.local.set({ openclip_synced_history: mergedHistory });
+      }
+    }
+    if (mergedExtensions.length > 0 && modalities.extensions !== false) {
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        await chrome.storage.local.set({ openclip_synced_extensions: mergedExtensions });
+      }
     }
 
     const statusMsg = masterState.isForcedAuxiliary

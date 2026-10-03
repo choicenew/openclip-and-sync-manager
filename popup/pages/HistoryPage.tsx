@@ -26,23 +26,58 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
 
   const loadHistory = async () => {
     setLoading(true);
-    const [items, syncSet, devices] = await Promise.all([
-      exportHistory(7, 300),
+    const [localItems, syncSet, devices, syncedCloudHistory] = await Promise.all([
+      exportHistory(30, 1000),
       getSyncSettings(),
       getDiscoveredDevices(),
+      new Promise<any[]>((resolve) => {
+        if (typeof chrome !== "undefined" && chrome.storage?.local) {
+          chrome.storage.local.get("openclip_synced_history", (res) =>
+            resolve(res.openclip_synced_history || []),
+          );
+        } else {
+          resolve([]);
+        }
+      }),
     ]);
 
-    const deviceId = syncSet.deviceId || "local";
-    const deviceName = syncSet.deviceName || "此设备";
+    const localDeviceId = syncSet.deviceId || "local";
+    const localDeviceName = syncSet.deviceName || "此设备";
 
-    // 标注设备归属 Tag
-    const taggedItems = items.map((item) => ({
+    const localTagged = localItems.map((item) => ({
       ...item,
-      deviceId,
-      deviceName,
+      deviceId: (item as any).deviceId || localDeviceId,
+      deviceName: (item as any).deviceName || localDeviceName,
     }));
 
-    setHistoryItems(taggedItems);
+    // 合并本地与云端已存的全量历史记录
+    const map = new Map<string, SyncHistoryItem & { deviceId?: string; deviceName?: string }>();
+    for (const item of syncedCloudHistory) {
+      if (item && item.url) map.set(item.url, item);
+    }
+    for (const item of localTagged) {
+      if (item && item.url) {
+        const existing = map.get(item.url);
+        if (existing) {
+          map.set(item.url, {
+            ...existing,
+            title: item.title || existing.title,
+            lastVisitTime: Math.max(existing.lastVisitTime || 0, item.lastVisitTime || 0),
+            visitCount: (existing.visitCount || 1) + (item.visitCount || 1),
+            deviceId: item.deviceId || existing.deviceId,
+            deviceName: item.deviceName || existing.deviceName,
+          });
+        } else {
+          map.set(item.url, item);
+        }
+      }
+    }
+
+    const allItems = Array.from(map.values()).sort(
+      (a, b) => (b.lastVisitTime || 0) - (a.lastVisitTime || 0),
+    );
+
+    setHistoryItems(allItems);
     setDiscoveredDevices(devices);
     setLoading(false);
   };
