@@ -37,34 +37,50 @@ export function mergeSessions(localSessions: SyncSession[] = [], remoteSessions:
   return merged.slice(0, 100);
 }
 
-/** 多设备书签树去重合并 */
+/** 多设备书签树去重合并 (多设备 ID 数组累加，防止筛选丢项) */
 export function mergeBookmarks(localBookmarks: any[] = [], remoteBookmarks: any[] = []): any[] {
   const map = new Map<string, any>();
+  const getDevIds = (item: any): string[] => {
+    if (Array.isArray(item.deviceIds) && item.deviceIds.length > 0) return item.deviceIds;
+    if (item.deviceId) return [item.deviceId];
+    return [];
+  };
+
   for (const b of remoteBookmarks) {
-    if (b && b.url) map.set(b.url, { ...b });
+    if (b && b.url) map.set(b.url, { ...b, deviceIds: getDevIds(b) });
   }
   for (const b of localBookmarks) {
     if (b && b.url) {
       const existing = map.get(b.url);
-      map.set(b.url, existing ? { ...existing, ...b, deviceId: existing.deviceId || b.deviceId, deviceName: existing.deviceName || b.deviceName } : { ...b });
+      const localDevs = getDevIds(b);
+      const combinedDevs = existing ? Array.from(new Set([...getDevIds(existing), ...localDevs])) : localDevs;
+      map.set(b.url, existing ? { ...existing, ...b, deviceId: existing.deviceId || b.deviceId, deviceName: existing.deviceName || b.deviceName, deviceIds: combinedDevs } : { ...b, deviceIds: localDevs });
     }
   }
   return Array.from(map.values());
 }
 
-/** 多设备浏览历史合并 */
+/** 多设备浏览历史合并 (多设备 ID 数组累加，保证切到任一设备都能查看到) */
 export function mergeHistory(
-  localHistory: (SyncHistoryItem & { deviceId?: string; deviceName?: string })[] = [],
-  remoteHistory: (SyncHistoryItem & { deviceId?: string; deviceName?: string })[] = [],
-): (SyncHistoryItem & { deviceId?: string; deviceName?: string })[] {
-  const map = new Map<string, SyncHistoryItem & { deviceId?: string; deviceName?: string }>();
+  localHistory: (SyncHistoryItem & { deviceId?: string; deviceName?: string; deviceIds?: string[] })[] = [],
+  remoteHistory: (SyncHistoryItem & { deviceId?: string; deviceName?: string; deviceIds?: string[] })[] = [],
+): (SyncHistoryItem & { deviceId?: string; deviceName?: string; deviceIds?: string[] })[] {
+  const map = new Map<string, SyncHistoryItem & { deviceId?: string; deviceName?: string; deviceIds?: string[] }>();
+  const getDevIds = (item: any): string[] => {
+    if (Array.isArray(item.deviceIds) && item.deviceIds.length > 0) return item.deviceIds;
+    if (item.deviceId) return [item.deviceId];
+    return [];
+  };
+
   for (const h of remoteHistory) {
-    if (h && h.url) map.set(h.url, { ...h });
+    if (h && h.url) map.set(h.url, { ...h, deviceIds: getDevIds(h) });
   }
   for (const h of localHistory) {
     if (h && h.url) {
       const existing = map.get(h.url);
+      const localDevs = getDevIds(h);
       if (existing) {
+        const combinedDevs = Array.from(new Set([...getDevIds(existing), ...localDevs]));
         map.set(h.url, {
           ...existing,
           title: h.title || existing.title,
@@ -72,9 +88,10 @@ export function mergeHistory(
           visitCount: (existing.visitCount || 1) + (h.visitCount || 1),
           deviceId: existing.deviceId || h.deviceId,
           deviceName: existing.deviceName || h.deviceName,
+          deviceIds: combinedDevs,
         });
       } else {
-        map.set(h.url, { ...h });
+        map.set(h.url, { ...h, deviceIds: localDevs });
       }
     }
   }
@@ -83,16 +100,24 @@ export function mergeHistory(
   return merged;
 }
 
-/** 多设备扩展列表合并 */
+/** 多设备扩展列表合并 (多设备 ID 数组累加) */
 export function mergeExtensions(localExts: SyncExtension[] = [], remoteExts: SyncExtension[] = []): SyncExtension[] {
   const map = new Map<string, SyncExtension>();
+  const getDevIds = (item: any): string[] => {
+    if (Array.isArray(item.deviceIds) && item.deviceIds.length > 0) return item.deviceIds;
+    if (item.deviceId) return [item.deviceId];
+    return [];
+  };
+
   for (const e of remoteExts) {
-    if (e && e.id) map.set(e.id, { ...e });
+    if (e && e.id) map.set(e.id, { ...e, deviceIds: getDevIds(e) });
   }
   for (const e of localExts) {
     if (e && e.id) {
       const existing = map.get(e.id);
-      map.set(e.id, existing ? { ...existing, ...e, deviceId: existing.deviceId || (e as any).deviceId, deviceName: existing.deviceName || (e as any).deviceName } : { ...e });
+      const localDevs = getDevIds(e);
+      const combinedDevs = existing ? Array.from(new Set([...getDevIds(existing), ...localDevs])) : localDevs;
+      map.set(e.id, existing ? { ...existing, ...e, deviceId: existing.deviceId || (e as any).deviceId, deviceName: existing.deviceName || (e as any).deviceName, deviceIds: combinedDevs } : { ...e, deviceIds: localDevs });
     }
   }
   return Array.from(map.values());

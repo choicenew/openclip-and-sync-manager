@@ -10,16 +10,18 @@ export interface SyncHistoryItem {
   visitCount: number;
 }
 
-/** 导出本地指定天数与数量上限的浏览历史记录 */
-export async function exportHistory(daysLimit = 7, maxCount = 300): Promise<SyncHistoryItem[]> {
+/** 导出本地指定天数与数量上限的浏览历史记录 (daysLimit 为 0 时查询全量历史) */
+export async function exportHistory(daysLimit = 0, maxCount = 5000): Promise<SyncHistoryItem[]> {
   if (typeof chrome === "undefined" || !chrome.history) return [];
   try {
-    const startTime = Date.now() - daysLimit * 24 * 60 * 60 * 1000;
-    const items = await chrome.history.search({
+    const searchOptions: chrome.history.HistoryQuery = {
       text: "",
-      startTime,
       maxResults: maxCount,
-    });
+    };
+    if (daysLimit > 0) {
+      searchOptions.startTime = Date.now() - daysLimit * 24 * 60 * 60 * 1000;
+    }
+    const items = await chrome.history.search(searchOptions);
 
     return items
       .filter((item) => item.url && (item.url.startsWith("http://") || item.url.startsWith("https://")))

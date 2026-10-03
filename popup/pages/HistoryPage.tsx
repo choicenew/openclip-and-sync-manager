@@ -27,7 +27,7 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
   const loadHistory = async () => {
     setLoading(true);
     const [localItems, syncSet, devices, syncedCloudHistory] = await Promise.all([
-      exportHistory(30, 1000),
+      exportHistory(0, 5000),
       getSyncSettings(),
       getDiscoveredDevices(),
       new Promise<any[]>((resolve) => {
@@ -48,27 +48,37 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
       ...item,
       deviceId: (item as any).deviceId || localDeviceId,
       deviceName: (item as any).deviceName || localDeviceName,
+      deviceIds: [(item as any).deviceId || localDeviceId],
     }));
 
+    const getDevIds = (item: any): string[] => {
+      if (Array.isArray(item.deviceIds) && item.deviceIds.length > 0) return item.deviceIds;
+      if (item.deviceId) return [item.deviceId];
+      return [localDeviceId];
+    };
+
     // 合并本地与云端已存的全量历史记录
-    const map = new Map<string, SyncHistoryItem & { deviceId?: string; deviceName?: string }>();
+    const map = new Map<string, SyncHistoryItem & { deviceId?: string; deviceName?: string; deviceIds?: string[] }>();
     for (const item of syncedCloudHistory) {
-      if (item && item.url) map.set(item.url, item);
+      if (item && item.url) map.set(item.url, { ...item, deviceIds: getDevIds(item) });
     }
     for (const item of localTagged) {
       if (item && item.url) {
         const existing = map.get(item.url);
+        const localDevs = getDevIds(item);
         if (existing) {
+          const combinedDevs = Array.from(new Set([...getDevIds(existing), ...localDevs]));
           map.set(item.url, {
             ...existing,
             title: item.title || existing.title,
             lastVisitTime: Math.max(existing.lastVisitTime || 0, item.lastVisitTime || 0),
             visitCount: (existing.visitCount || 1) + (item.visitCount || 1),
-            deviceId: item.deviceId || existing.deviceId,
-            deviceName: item.deviceName || existing.deviceName,
+            deviceId: existing.deviceId || item.deviceId,
+            deviceName: existing.deviceName || item.deviceName,
+            deviceIds: combinedDevs,
           });
         } else {
-          map.set(item.url, item);
+          map.set(item.url, { ...item, deviceIds: localDevs });
         }
       }
     }
@@ -193,8 +203,10 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
   const query = (searchQuery || filterText).toLowerCase().trim();
   const filtered = historyItems.filter((item) => {
     const matchesSearch = item.url.toLowerCase().includes(query) || (item.title && item.title.toLowerCase().includes(query));
-    const itemDevId = item.deviceId || "local";
-    const matchesDevice = selectedDeviceFilter === "all" || itemDevId === selectedDeviceFilter;
+    const devs = Array.isArray((item as any).deviceIds) && (item as any).deviceIds.length > 0
+      ? (item as any).deviceIds
+      : [item.deviceId || localDeviceId];
+    const matchesDevice = selectedDeviceFilter === "all" || devs.includes(selectedDeviceFilter);
     return matchesSearch && matchesDevice;
   });
 
