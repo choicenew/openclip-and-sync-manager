@@ -93,11 +93,23 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
           } else {
             selectedEntryIds.add(entry.id);
           }
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
         }}>
         <input
           type="checkbox"
           checked={isSelected}
-          onChange={() => {}}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            e.stopPropagation();
+            if (isSelected) {
+              selectedEntryIds.delete(entry.id);
+            } else {
+              selectedEntryIds.add(entry.id);
+            }
+          }}
           style={{
             width: "16px",
             height: "16px",

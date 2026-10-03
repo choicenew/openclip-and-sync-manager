@@ -9,6 +9,7 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
   const [bookmarks, setBookmarks] = useState<{ title: string; url: string; deviceId?: string; deviceName?: string }[]>([]);
   const [discoveredDevices, setDiscoveredDevices] = useState<DeviceInfo[]>([]);
   const [selectedDeviceFilter, setSelectedDeviceFilter] = useState<string>("all");
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filterText, setFilterText] = useState("");
@@ -105,6 +106,50 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
     showToast("链接已复制到剪贴板！");
   };
 
+  const toggleSelectUrl = (url: string) => {
+    setSelectedUrls((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url);
+      else next.add(url);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedUrls.size === filtered.length && filtered.length > 0) {
+      setSelectedUrls(new Set());
+    } else {
+      setSelectedUrls(new Set(filtered.map((b) => b.url)));
+    }
+  };
+
+  const handleBatchCopyUrls = () => {
+    if (selectedUrls.size === 0) return;
+    const text = Array.from(selectedUrls).join("\n");
+    navigator.clipboard.writeText(text);
+    showToast(`已批量复制 ${selectedUrls.size} 条书签链接！`);
+  };
+
+  const handleBatchCopyTitleAndUrls = () => {
+    if (selectedUrls.size === 0) return;
+    const selectedList = filtered.filter((b) => selectedUrls.has(b.url));
+    const text = selectedList.map((b) => `${b.title}: ${b.url}`).join("\n");
+    navigator.clipboard.writeText(text);
+    showToast(`已批量复制 ${selectedList.length} 条标题与链接！`);
+  };
+
+  const handleBatchOpen = () => {
+    if (selectedUrls.size === 0) return;
+    let opened = 0;
+    selectedUrls.forEach((url) => {
+      if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+        chrome.tabs?.create({ url, active: false });
+        opened++;
+      }
+    });
+    showToast(`已批量在后台打开 ${opened} 个书签页！`);
+  };
+
   const query = (searchQuery || filterText).toLowerCase().trim();
   const filtered = bookmarks.filter((b) => {
     const matchesSearch = b.title.toLowerCase().includes(query) || b.url.toLowerCase().includes(query);
@@ -175,6 +220,43 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
         </div>
       </div>
 
+      {/* 批量操作工具栏 */}
+      <div className="native-card flex-between" style={{ padding: "6px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "11px" }}>
+            <input
+              type="checkbox"
+              checked={filtered.length > 0 && selectedUrls.size === filtered.length}
+              onChange={toggleSelectAll}
+              style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+            />
+            <span>全选</span>
+          </label>
+
+          <button
+            className="native-btn native-btn-sm native-btn-subtle"
+            disabled={selectedUrls.size === 0}
+            onClick={handleBatchCopyUrls}>
+            📋 批量复制 URL
+          </button>
+          <button
+            className="native-btn native-btn-sm native-btn-subtle"
+            disabled={selectedUrls.size === 0}
+            onClick={handleBatchCopyTitleAndUrls}>
+            📄 复制标题+链接
+          </button>
+          <button
+            className="native-btn native-btn-sm native-btn-subtle"
+            disabled={selectedUrls.size === 0}
+            onClick={handleBatchOpen}>
+            🔗 批量打开 ({selectedUrls.size})
+          </button>
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
+          已选 {selectedUrls.size} / 共 {filtered.length} 条
+        </div>
+      </div>
+
       {/* 书签卡片列表 */}
       <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, overflowY: "auto" }}>
         {filtered.length === 0 ? (
@@ -182,39 +264,58 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
             {loading ? "正在读取浏览器书签树..." : "未找到匹配的书签记录"}
           </div>
         ) : (
-          filtered.map((item, idx) => (
-            <div key={idx} className="native-card-subtle flex-between" style={{ padding: "6px 10px" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflow: "hidden", flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span>🔖</span>
-                  <span style={{ fontWeight: 600, fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {item.title || item.url}
-                  </span>
-                  {item.deviceName && <span className="native-badge native-badge-blue">🏷️ {item.deviceName}</span>}
+          filtered.map((item, idx) => {
+            const isSelected = selectedUrls.has(item.url);
+            return (
+              <div key={idx} className="native-card-subtle flex-between" style={{ padding: "6px 10px", backgroundColor: isSelected ? "rgba(79, 70, 229, 0.08)" : undefined }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, overflow: "hidden" }}>
+                  <div
+                    style={{ padding: "4px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelectUrl(item.url);
+                    }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleSelectUrl(item.url)}
+                      style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflow: "hidden", flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>🔖</span>
+                      <span style={{ fontWeight: 600, fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {item.title || item.url}
+                      </span>
+                      {item.deviceName && <span className="native-badge native-badge-blue">🏷️ {item.deviceName}</span>}
+                    </div>
+                    <div style={{ fontSize: "10px", color: "var(--text-dimmed)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {item.url}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: "10px", color: "var(--text-dimmed)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {item.url}
-                </div>
-              </div>
 
-              <div style={{ display: "flex", gap: "4px", marginLeft: "8px" }}>
-                <button
-                  className="native-btn native-btn-sm native-btn-subtle"
-                  title="复制 URL"
-                  onClick={() => handleCopy(item.url)}>
-                  📋 复制
-                </button>
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="native-btn native-btn-sm"
-                  style={{ textDecoration: "none" }}>
-                  🔗 打开
-                </a>
+                <div style={{ display: "flex", gap: "4px", marginLeft: "8px" }}>
+                  <button
+                    className="native-btn native-btn-sm native-btn-subtle"
+                    title="复制 URL"
+                    onClick={() => handleCopy(item.url)}>
+                    📋 复制
+                  </button>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="native-btn native-btn-sm"
+                    style={{ textDecoration: "none" }}>
+                    🔗 打开
+                  </a>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

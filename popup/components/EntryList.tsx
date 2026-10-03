@@ -83,6 +83,13 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
     }
   };
 
+  const handleBatchCopy = () => {
+    if (selectedEntryIds.size === 0) return;
+    const selectedEntries = safeEntries.filter((e) => selectedEntryIds.has(e.id));
+    const combinedText = selectedEntries.map((e) => e.content).join("\n\n");
+    navigator.clipboard.writeText(combinedText);
+  };
+
   const handleToggleSortOrder = async () => {
     const nextOrder = settings.sortOrder === "asc" ? "desc" : "asc";
     const updated = { ...settings, sortOrder: nextOrder };
@@ -138,7 +145,14 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
               }}
             />
           </div>
-          />
+
+          <button
+            className="native-btn native-btn-sm native-btn-subtle"
+            disabled={selectedEntryIds.size === 0}
+            title="一键批量复制所选条目的文本内容"
+            onClick={handleBatchCopy}>
+            📋 批量复制
+          </button>
 
           <button
             className="native-btn native-btn-sm native-btn-subtle"

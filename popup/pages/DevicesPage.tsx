@@ -27,6 +27,8 @@ export const DevicesPage: React.FC = () => {
   const [syncSettings, setSyncSettingsState] = useState<SyncSettings | null>(null);
   const [sysSettings, setSysSettings] = useState<Settings | null>(null);
   const [discoveredDevices, setDiscoveredDevices] = useState<DeviceInfo[]>([]);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
+  const [toastMsg, setToastMsg] = useState("");
   const [masterState, setMasterState] = useState<MasterDeviceState>({
     isMasterDevice: false,
     isForcedAuxiliary: false,
@@ -36,6 +38,11 @@ export const DevicesPage: React.FC = () => {
     auxiliaryTargetDeviceId: null,
     deviceRules: {},
   });
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
 
   const [selectedTargetDeviceId, setSelectedTargetDeviceId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
@@ -216,8 +223,38 @@ export const DevicesPage: React.FC = () => {
 
   const isEditable = masterState.isMasterDevice && !masterState.isForcedAuxiliary;
 
+  const toggleSelectDeviceId = (id: string) => {
+    setSelectedDeviceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllDevices = () => {
+    if (selectedDeviceIds.size === allDisplayDevices.length && allDisplayDevices.length > 0) {
+      setSelectedDeviceIds(new Set());
+    } else {
+      setSelectedDeviceIds(new Set(allDisplayDevices.map((d) => d.deviceId)));
+    }
+  };
+
+  const handleBatchCopyDeviceIds = () => {
+    if (selectedDeviceIds.size === 0) return;
+    const selectedList = allDisplayDevices.filter((d) => selectedDeviceIds.has(d.deviceId));
+    const text = selectedList.map((d) => `${d.deviceName}: ${d.deviceId}`).join("\n");
+    navigator.clipboard.writeText(text);
+    showToast(`已批量复制 ${selectedList.length} 台设备名称与 ID！`);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "12px", height: "100%", overflowY: "auto" }}>
+      {toastMsg && (
+        <div className="native-card" style={{ backgroundColor: "var(--primary-color)", color: "#fff", padding: "6px 12px", fontSize: "11px" }}>
+          🔔 {toastMsg}
+        </div>
+      )}
       {/* 1. 顶部：主辅设备角色控制卡片 */}
       <div className="native-card" style={{ borderColor: "var(--primary-color)" }}>
         <div className="flex-between" style={{ marginBottom: "8px" }}>
@@ -322,12 +359,32 @@ export const DevicesPage: React.FC = () => {
 
       {/* 2. 已关联从设备墙卡片列表 */}
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, overflowY: "auto" }}>
-        <div style={{ fontWeight: 600, fontSize: "12px", color: "var(--text-dimmed)" }}>
-          已登记的设备节点卡片墙 ({allDisplayDevices.length})
+        <div className="flex-between">
+          <div style={{ fontWeight: 600, fontSize: "12px", color: "var(--text-dimmed)" }}>
+            已登记的设备节点卡片墙 ({allDisplayDevices.length})
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "11px" }}>
+              <input
+                type="checkbox"
+                checked={allDisplayDevices.length > 0 && selectedDeviceIds.size === allDisplayDevices.length}
+                onChange={toggleSelectAllDevices}
+                style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+              />
+              <span>全选</span>
+            </label>
+            <button
+              className="native-btn native-btn-sm native-btn-subtle"
+              disabled={selectedDeviceIds.size === 0}
+              onClick={handleBatchCopyDeviceIds}>
+              📋 批量复制设备名称与 ID ({selectedDeviceIds.size})
+            </button>
+          </div>
         </div>
 
         {allDisplayDevices.map((dev) => {
           const isCurrent = dev.deviceId === syncSettings?.deviceId;
+          const isSelected = selectedDeviceIds.has(dev.deviceId);
           const deviceRule: DevicePermissionRule = masterState.deviceRules?.[dev.deviceId] || {
             deviceId: dev.deviceId,
             deviceName: dev.deviceName,
@@ -336,9 +393,16 @@ export const DevicesPage: React.FC = () => {
           };
 
           return (
-            <div key={dev.deviceId} className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div key={dev.deviceId} className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px", backgroundColor: isSelected ? "rgba(79, 70, 229, 0.08)" : undefined }}>
               <div className="flex-between">
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => toggleSelectDeviceId(dev.deviceId)}
+                    style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+                  />
                   <span>💻</span>
                   <span style={{ fontWeight: 600, fontSize: "12px" }}>{deviceRule.customAlias || dev.deviceName}</span>
                   {isCurrent && <span className="native-badge native-badge-cyan">本机</span>}

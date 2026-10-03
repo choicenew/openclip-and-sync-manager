@@ -22,6 +22,7 @@ interface Props {
 export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
   const [syncedSessions, setSyncedSessionsState] = useState<SyncSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("local_current");
+  const [selectedTabUrls, setSelectedTabUrls] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
@@ -195,6 +196,50 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
 
   const handleRestoreSession = async (tabs: SyncTab[], inNewWindow = true) => {
     await openSessionTabs(tabs, inNewWindow, lazyLoading);
+  };
+
+  const toggleSelectTabUrl = (url: string) => {
+    setSelectedTabUrls((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url);
+      else next.add(url);
+      return next;
+    });
+  };
+
+  const toggleSelectAllTabs = (allTabs: SyncTab[]) => {
+    if (selectedTabUrls.size === allTabs.length && allTabs.length > 0) {
+      setSelectedTabUrls(new Set());
+    } else {
+      setSelectedTabUrls(new Set(allTabs.map((t) => t.url)));
+    }
+  };
+
+  const handleBatchCopyTabUrls = () => {
+    if (selectedTabUrls.size === 0) return;
+    const text = Array.from(selectedTabUrls).join("\n");
+    navigator.clipboard.writeText(text);
+    showToast(`已批量复制 ${selectedTabUrls.size} 条标签页链接！`);
+  };
+
+  const handleBatchCopyTabTitlesAndUrls = (allTabs: SyncTab[]) => {
+    if (selectedTabUrls.size === 0) return;
+    const selectedList = allTabs.filter((t) => selectedTabUrls.has(t.url));
+    const text = selectedList.map((t) => `${t.title || t.url}: ${t.url}`).join("\n");
+    navigator.clipboard.writeText(text);
+    showToast(`已批量复制 ${selectedList.length} 条标题与链接！`);
+  };
+
+  const handleBatchOpenSelectedTabs = () => {
+    if (selectedTabUrls.size === 0) return;
+    let opened = 0;
+    selectedTabUrls.forEach((url) => {
+      if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+        chrome.tabs?.create({ url, active: false });
+        opened++;
+      }
+    });
+    showToast(`已批量在后台打开 ${opened} 个标签页！`);
   };
 
   const selectedSession = syncedSessions.find((s) => s.id === selectedSessionId) || syncedSessions[0];
@@ -430,6 +475,43 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                 </div>
               </div>
 
+              {/* 标签页多选与批量复制 Bar */}
+              <div className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "11px" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedSession.tabs.length > 0 && selectedTabUrls.size === selectedSession.tabs.length}
+                      onChange={() => toggleSelectAllTabs(selectedSession.tabs)}
+                      style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+                    />
+                    <span>全选标签页</span>
+                  </label>
+
+                  <button
+                    className="native-btn native-btn-sm native-btn-subtle"
+                    disabled={selectedTabUrls.size === 0}
+                    onClick={handleBatchCopyTabUrls}>
+                    📋 批量复制 URL
+                  </button>
+                  <button
+                    className="native-btn native-btn-sm native-btn-subtle"
+                    disabled={selectedTabUrls.size === 0}
+                    onClick={() => handleBatchCopyTabTitlesAndUrls(selectedSession.tabs)}>
+                    📄 复制标题+链接
+                  </button>
+                  <button
+                    className="native-btn native-btn-sm native-btn-subtle"
+                    disabled={selectedTabUrls.size === 0}
+                    onClick={handleBatchOpenSelectedTabs}>
+                    🔗 批量打开 ({selectedTabUrls.size})
+                  </button>
+                </div>
+                <div style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>
+                  已选 {selectedTabUrls.size} / 共 {selectedSession.tabs.length} 标签
+                </div>
+              </div>
+
               <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
                 {(() => {
                   const { groupsMap, ungroupedTabs } = groupTabsByGroup(selectedSession.tabs);
@@ -453,37 +535,57 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                             </button>
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "8px" }}>
-                            {g.tabs.map((t, tIdx) => (
-                              <div key={`g_tab_${tIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
-                                  {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
-                                  <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {t.title}
+                            {g.tabs.map((t, tIdx) => {
+                              const isSelected = selectedTabUrls.has(t.url);
+                              return (
+                                <div key={`g_tab_${tIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px", backgroundColor: isSelected ? "rgba(79, 70, 229, 0.08)" : undefined }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={() => toggleSelectTabUrl(t.url)}
+                                      style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+                                    />
+                                    {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
+                                    <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                      {t.title}
+                                    </span>
+                                  </div>
+                                  <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
+                                    {t.url.slice(0, 35)}...
                                   </span>
                                 </div>
-                                <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
-                                  {t.url.slice(0, 35)}...
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       ))}
 
                       {/* 未编组普通 Tab 列表 */}
-                      {ungroupedTabs.map((t, uIdx) => (
-                        <div key={`ungrouped_${uIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
-                            {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
-                            <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {t.title}
+                      {ungroupedTabs.map((t, uIdx) => {
+                        const isSelected = selectedTabUrls.has(t.url);
+                        return (
+                          <div key={`ungrouped_${uIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px", backgroundColor: isSelected ? "rgba(79, 70, 229, 0.08)" : undefined }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => toggleSelectTabUrl(t.url)}
+                                style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+                              />
+                              {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
+                              <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {t.title}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
+                              {t.url.slice(0, 35)}...
                             </span>
                           </div>
-                          <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
-                            {t.url.slice(0, 35)}...
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </>
                   );
                 })()}

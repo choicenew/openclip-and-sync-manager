@@ -289,6 +289,12 @@ export const TabGroupsPage: React.FC = () => {
 
   const colors = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
 
+  const handleCopyGroupUrls = (tabs: { url: string; title?: string }[]) => {
+    const urls = tabs.map((t) => t.url).filter(Boolean).join("\n");
+    navigator.clipboard.writeText(urls);
+    showToast(`已批量复制组内 ${tabs.length} 个标签页链接！`);
+  };
+
   const filteredActive = activeGroups.filter(
     (g) => g.title.toLowerCase().includes(search.toLowerCase()) || g.tabs.some((t) => t.title.toLowerCase().includes(search.toLowerCase())),
   );
@@ -368,6 +374,9 @@ export const TabGroupsPage: React.FC = () => {
                     <span style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>({g.tabs.length} 标签)</span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
+                    <button className="native-btn native-btn-sm native-btn-subtle" onClick={() => handleCopyGroupUrls(g.tabs)}>
+                      📋 批量复制组内链接
+                    </button>
                     <button className="native-btn native-btn-sm" onClick={() => handleSaveTabGroupToAsset(g)}>
                       💾 保存此 Tab Group
                     </button>
@@ -417,6 +426,9 @@ export const TabGroupsPage: React.FC = () => {
                   <span style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>({g.tabs.length} 标签页)</span>
                 </div>
                 <div style={{ display: "flex", gap: "6px" }}>
+                  <button className="native-btn native-btn-sm native-btn-subtle" onClick={() => handleCopyGroupUrls(g.tabs)}>
+                    📋 批量复制组内链接
+                  </button>
                   <button className="native-btn native-btn-sm" onClick={() => handleRestoreGroup(g)}>
                     🚀 在新窗口一键还原 Tab Group
                   </button>
