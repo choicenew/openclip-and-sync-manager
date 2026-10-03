@@ -174,7 +174,8 @@ export const BookmarksPage: React.FC<{ searchQuery: string }> = ({ searchQuery }
   const query = (searchQuery || filterText).toLowerCase().trim();
   const filtered = bookmarks.filter((b) => {
     const matchesSearch = b.title.toLowerCase().includes(query) || b.url.toLowerCase().includes(query);
-    const matchesDevice = selectedDeviceFilter === "all" || b.deviceId === selectedDeviceFilter;
+    const itemDevId = b.deviceId || "local";
+    const matchesDevice = selectedDeviceFilter === "all" || itemDevId === selectedDeviceFilter;
     return matchesSearch && matchesDevice;
   });
 

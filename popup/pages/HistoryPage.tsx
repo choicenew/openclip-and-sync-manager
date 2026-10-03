@@ -193,7 +193,8 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
   const query = (searchQuery || filterText).toLowerCase().trim();
   const filtered = historyItems.filter((item) => {
     const matchesSearch = item.url.toLowerCase().includes(query) || (item.title && item.title.toLowerCase().includes(query));
-    const matchesDevice = selectedDeviceFilter === "all" || item.deviceId === selectedDeviceFilter;
+    const itemDevId = item.deviceId || "local";
+    const matchesDevice = selectedDeviceFilter === "all" || itemDevId === selectedDeviceFilter;
     return matchesSearch && matchesDevice;
   });
 

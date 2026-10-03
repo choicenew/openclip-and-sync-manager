@@ -5,12 +5,14 @@
 
 ---
 
-### 🌐 官方 Promo 主页与体验入口 (Official Promo Site)
+## 🔗 Index 宣传主页与网页入口 (Promo Index Page)
 
-> ### 👉 **[https://choicenew.github.io/openclip-and-sync-manager/](https://choicenew.github.io/openclip-and-sync-manager/)** 👈
-> **点击上方链接直达官方 Promo 宣传 index 站点（支持动态多语言切换、版本下载与完整功能比对）**
+本项目专门制作了高颜值 Promo Index 宣传网页，可以直接点击下方链接访问：
 
-[![Official Website](https://img.shields.io/badge/Official%20Site-Live%20Promo-6366f1.svg?style=for-the-badge&logo=googlechrome)](https://choicenew.github.io/openclip-and-sync-manager/)
+* 🌐 **GitHub Pages 在线 Index 主页**：[https://choicenew.github.io/openclip-and-sync-manager/](https://choicenew.github.io/openclip-and-sync-manager/)
+* 📄 **仓库本地 Index 源文件**：[docs/index.html](./docs/index.html)
+
+[![Official Website](https://img.shields.io/badge/Official%20Site-Live%20Index%20Promo-6366f1.svg?style=for-the-badge&logo=googlechrome)](https://choicenew.github.io/openclip-and-sync-manager/)
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-181717.svg?style=for-the-badge&logo=github)](https://github.com/choicenew/openclip-and-sync-manager)
 [![Version](https://img.shields.io/badge/Version-v2.7.49-indigo.svg?style=for-the-badge)](https://github.com/choicenew/openclip-and-sync-manager/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)

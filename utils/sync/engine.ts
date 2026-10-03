@@ -41,22 +41,25 @@ export function mergeSessions(localSessions: SyncSession[] = [], remoteSessions:
 export function mergeBookmarks(localBookmarks: any[] = [], remoteBookmarks: any[] = []): any[] {
   const map = new Map<string, any>();
   for (const b of remoteBookmarks) {
-    if (b && b.url) map.set(b.url, b);
+    if (b && b.url) map.set(b.url, { ...b });
   }
   for (const b of localBookmarks) {
     if (b && b.url) {
       const existing = map.get(b.url);
-      map.set(b.url, existing ? { ...existing, ...b } : b);
+      map.set(b.url, existing ? { ...existing, ...b, deviceId: existing.deviceId || b.deviceId, deviceName: existing.deviceName || b.deviceName } : { ...b });
     }
   }
   return Array.from(map.values());
 }
 
 /** 多设备浏览历史合并 */
-export function mergeHistory(localHistory: SyncHistoryItem[] = [], remoteHistory: SyncHistoryItem[] = []): SyncHistoryItem[] {
-  const map = new Map<string, SyncHistoryItem>();
+export function mergeHistory(
+  localHistory: (SyncHistoryItem & { deviceId?: string; deviceName?: string })[] = [],
+  remoteHistory: (SyncHistoryItem & { deviceId?: string; deviceName?: string })[] = [],
+): (SyncHistoryItem & { deviceId?: string; deviceName?: string })[] {
+  const map = new Map<string, SyncHistoryItem & { deviceId?: string; deviceName?: string }>();
   for (const h of remoteHistory) {
-    if (h && h.url) map.set(h.url, h);
+    if (h && h.url) map.set(h.url, { ...h });
   }
   for (const h of localHistory) {
     if (h && h.url) {
@@ -67,11 +70,11 @@ export function mergeHistory(localHistory: SyncHistoryItem[] = [], remoteHistory
           title: h.title || existing.title,
           lastVisitTime: Math.max(existing.lastVisitTime || 0, h.lastVisitTime || 0),
           visitCount: (existing.visitCount || 1) + (h.visitCount || 1),
-          deviceId: h.deviceId || existing.deviceId,
-          deviceName: h.deviceName || existing.deviceName,
+          deviceId: existing.deviceId || h.deviceId,
+          deviceName: existing.deviceName || h.deviceName,
         });
       } else {
-        map.set(h.url, h);
+        map.set(h.url, { ...h });
       }
     }
   }
@@ -84,10 +87,13 @@ export function mergeHistory(localHistory: SyncHistoryItem[] = [], remoteHistory
 export function mergeExtensions(localExts: SyncExtension[] = [], remoteExts: SyncExtension[] = []): SyncExtension[] {
   const map = new Map<string, SyncExtension>();
   for (const e of remoteExts) {
-    if (e && e.id) map.set(e.id, e);
+    if (e && e.id) map.set(e.id, { ...e });
   }
   for (const e of localExts) {
-    if (e && e.id) map.set(e.id, e);
+    if (e && e.id) {
+      const existing = map.get(e.id);
+      map.set(e.id, existing ? { ...existing, ...e, deviceId: existing.deviceId || (e as any).deviceId, deviceName: existing.deviceName || (e as any).deviceName } : { ...e });
+    }
   }
   return Array.from(map.values());
 }
@@ -111,14 +117,32 @@ export async function getLocalMultiModalPayload(): Promise<MultiModalSyncPayload
     extensions: true,
   };
 
-  const [bookmarks, history, currentSession, extensions] = await Promise.all([
+  const [rawBookmarks, rawHistory, currentSession, rawExtensions] = await Promise.all([
     modalities.bookmarks ? exportBookmarksTree() : Promise.resolve([]),
-    modalities.history ? exportHistory(7, 300) : Promise.resolve([]),
+    modalities.history ? exportHistory(30, 1000) : Promise.resolve([]),
     modalities.sessions
       ? exportSession(deviceId, deviceName)
       : Promise.resolve({ id: "", deviceId, deviceName, savedAt: "", tabs: [] }),
     modalities.extensions ? exportExtensions() : Promise.resolve([]),
   ]);
+
+  const bookmarks = rawBookmarks.map((b: any) => ({
+    ...b,
+    deviceId: b.deviceId || deviceId,
+    deviceName: b.deviceName || deviceName,
+  }));
+
+  const history = rawHistory.map((h: any) => ({
+    ...h,
+    deviceId: (h as any).deviceId || deviceId,
+    deviceName: (h as any).deviceName || deviceName,
+  }));
+
+  const extensions = rawExtensions.map((e: any) => ({
+    ...e,
+    deviceId: (e as any).deviceId || deviceId,
+    deviceName: (e as any).deviceName || deviceName,
+  }));
 
   const allLocalSessions = currentSession.tabs?.length > 0
     ? [currentSession, ...savedSessions.filter((s) => s.id !== "local_current")]
