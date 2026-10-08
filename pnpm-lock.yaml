@@ -17,30 +17,9 @@ dependencies:
   "@dnd-kit/utilities":
     specifier: ^3.2.2
     version: 3.2.2(react@18.2.0)
-  "@emotion/react":
-    specifier: ^11.13.3
-    version: 11.13.3(@types/react@18.2.48)(react@18.2.0)
   "@hookform/resolvers":
     specifier: ^3.9.0
     version: 3.9.0(react-hook-form@7.53.0)
-  "@instantdb/core":
-    specifier: ^0.17.31
-    version: 0.17.31
-  "@instantdb/react":
-    specifier: ^0.17.31
-    version: 0.17.31(react@18.2.0)
-  "@mantine/core":
-    specifier: 6.0.21
-    version: 6.0.21(@emotion/react@11.13.3)(@mantine/hooks@6.0.21)(@types/react@18.2.48)(react-dom@18.2.0)(react@18.2.0)
-  "@mantine/hooks":
-    specifier: 6.0.21
-    version: 6.0.21(react@18.2.0)
-  "@mantine/modals":
-    specifier: 6.0.21
-    version: 6.0.21(@mantine/core@6.0.21)(@mantine/hooks@6.0.21)(react-dom@18.2.0)(react@18.2.0)
-  "@mantine/notifications":
-    specifier: 6.0.21
-    version: 6.0.21(@mantine/core@6.0.21)(@mantine/hooks@6.0.21)(react-dom@18.2.0)(react@18.2.0)
   "@marko19907/string-to-color":
     specifier: ^1.0.0
     version: 1.0.0
@@ -53,9 +32,6 @@ dependencies:
   "@ricokahler/pool":
     specifier: ^1.2.0
     version: 1.2.0
-  "@tabler/icons-react":
-    specifier: ^3.14.0
-    version: 3.14.0(react@18.2.0)
   date-fns:
     specifier: 3.1.0
     version: 3.1.0
@@ -93,7 +69,7 @@ dependencies:
     specifier: ^3.3.0
     version: 3.3.0
   zod:
-    specifier: ^3.23.8
+    specifier: 3.23.8
     version: 3.23.8
 
 devDependencies:

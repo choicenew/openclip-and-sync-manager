@@ -5,14 +5,20 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   update-contributors:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+
     steps:
-      - uses: akhilmhdh/contributors-readme-action@v2.3.10
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update Contributors Readme
+        uses: akhilmhdh/contributors-readme-action@v2.3.10
         with:
           pr_title_on_protected: "docs: update contributors"
           commit_message: "docs: update contributors"

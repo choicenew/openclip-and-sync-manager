@@ -7,35 +7,41 @@ on:
 
 jobs:
   release:
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
         node-version: [20.x]
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 
-      - uses: pnpm/action-setup@v3
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
         with:
           version: 8
 
-      - name: Build and compress
+      - name: Build extension packages
         run: |
-          pnpm install
+          pnpm install --no-frozen-lockfile
           pnpm build
           pnpm package
           pnpm build:firefox
           pnpm package:firefox
 
-      - uses: "marvinpinto/action-automatic-releases@v1.2.1"
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
           files: |
             ./build/chrome-mv3-prod.zip
             ./build/firefox-mv2-prod.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

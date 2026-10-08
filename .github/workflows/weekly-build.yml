@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -32,7 +32,7 @@ jobs:
 
       - name: Install & Build Extension
         run: |
-          pnpm install
+          pnpm install --no-frozen-lockfile
           pnpm build
           pnpm package
 
