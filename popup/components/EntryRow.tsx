@@ -23,6 +23,8 @@ import { EntryPinAction } from "./EntryPinAction";
 import { EditEntryModalContent } from "./modals/EditEntryModalContent";
 import { TagBadge } from "./TagBadge";
 import { TagSelect } from "./TagSelect";
+import { classifyEntryContent } from "~utils/entryClassifier";
+import { isSensitiveContent, maskSensitiveContent } from "~utils/entryMasking";
 
 interface Props {
   entry: Entry;

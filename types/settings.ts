@@ -62,6 +62,18 @@ export const defaultSettings = {
   sessionIgnoreUrls: "https://example.com/*\nhttps://example.net/*",
   sessionMinTabCount: 1,
   sessionSaveWindowMode: "current", // "current" | "all"
+  // E2EE 端到端零知识加密
+  e2eeEnabled: false,
+  e2eePassphrase: "",
+  // P2P 局域网直连同步
+  p2pEnabled: false,
+  p2pRoomKey: "",
+  // 智能分类、脱敏与 TTL 清除
+  autoClassifyEntries: true,
+  autoMaskSensitiveData: true,
+  sensitiveDataTTLMinutes: 0, // 0 表示不自动销毁，>0 表示分钟数
+  // 标签页挂起与休眠
+  autoTabSuspendMinutes: 0, // 0 表示不自动挂起，>0 表示闲置分钟数
 };
 
 export const BlacklistRuleSchema = z.object({
@@ -108,6 +120,14 @@ export const Settings = z
     sessionIgnoreUrls: z.string().default(defaultSettings.sessionIgnoreUrls),
     sessionMinTabCount: z.number().default(defaultSettings.sessionMinTabCount),
     sessionSaveWindowMode: z.string().default(defaultSettings.sessionSaveWindowMode),
+    e2eeEnabled: z.boolean().default(defaultSettings.e2eeEnabled),
+    e2eePassphrase: z.string().default(defaultSettings.e2eePassphrase),
+    p2pEnabled: z.boolean().default(defaultSettings.p2pEnabled),
+    p2pRoomKey: z.string().default(defaultSettings.p2pRoomKey),
+    autoClassifyEntries: z.boolean().default(defaultSettings.autoClassifyEntries),
+    autoMaskSensitiveData: z.boolean().default(defaultSettings.autoMaskSensitiveData),
+    sensitiveDataTTLMinutes: z.number().default(defaultSettings.sensitiveDataTTLMinutes),
+    autoTabSuspendMinutes: z.number().default(defaultSettings.autoTabSuspendMinutes),
   })
   .default(defaultSettings);
 export type Settings = z.infer<typeof Settings>;

@@ -20,6 +20,7 @@ import {
   type CloudEntry,
   type DeviceInfo,
 } from "~utils/sync/provider";
+import { decryptE2EEText, encryptE2EEText } from "~utils/crypto/e2ee";
 import { _setEntries, getEntries } from "~utils/storage";
 
 export interface DbData {
@@ -60,11 +61,21 @@ export const getLocalAsCloudData = async (): Promise<CloudData> => {
     settings.localItemCharacterLimit,
   );
 
+  let finalCloudEntries = pruned;
+  if (settings.e2eeEnabled && settings.e2eePassphrase) {
+    finalCloudEntries = await Promise.all(
+      pruned.map(async (ce) => ({
+        ...ce,
+        content: await encryptE2EEText(ce.content, settings.e2eePassphrase),
+      })),
+    );
+  }
+
   const registeredDevices = await registerCurrentDevice(syncSettings);
-  const allDevices = extractDiscoveredDevices({ entries: pruned, settings: [] }, registeredDevices);
+  const allDevices = extractDiscoveredDevices({ entries: finalCloudEntries, settings: [] }, registeredDevices);
 
   return {
-    entries: pruned,
+    entries: finalCloudEntries,
     settings: [],
     devices: allDevices,
   };
@@ -98,11 +109,17 @@ export const saveCloudDataToLocal = async (cloudData: CloudData): Promise<void> 
       continue;
     }
 
-    const existing = entryMap.get(ce.content);
+    // 端到端解密 E2EE 处理
+    let decryptedContent = ce.content;
+    if (ce.content.startsWith("ENC:v1:")) {
+      decryptedContent = await decryptE2EEText(ce.content, settings.e2eePassphrase);
+    }
+
+    const existing = entryMap.get(decryptedContent);
     if (!existing) {
-      entryMap.set(ce.content, {
+      entryMap.set(decryptedContent, {
         id: ce.id,
-        content: ce.content,
+        content: decryptedContent,
         createdAt: ce.createdAt,
         copiedAt: ce.copiedAt || ce.createdAt,
       });
