@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+
+import { TabKanbanBoard } from "~popup/components/TabKanbanBoard";
 import { getSyncedSessions } from "~storage/syncedSessions";
 import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
 
@@ -13,6 +15,7 @@ export interface ActiveTabGroup {
 }
 
 export const TabGroupsPage: React.FC = () => {
+  const [viewMode, setViewMode] = useState<"groups" | "kanban">("groups");
   const [activeGroups, setActiveGroups] = useState<ActiveTabGroup[]>([]);
   const [savedGroups, setSavedGroups] = useState<ActiveTabGroup[]>([]);
   const [openTabs, setOpenTabs] = useState<chrome.tabs.Tab[]>([]);
@@ -311,7 +314,43 @@ export const TabGroupsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 控流面板 B: 【数据视角】Tab Groups 允许同步到的云节点 */}
+      {/* 视图模式切换 */}
+      <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
+        <button
+          onClick={() => setViewMode("groups")}
+          style={{
+            padding: "4px 12px",
+            fontSize: "12px",
+            fontWeight: 600,
+            borderRadius: "6px",
+            border: "none",
+            backgroundColor: viewMode === "groups" ? "var(--primary-color, #6366f1)" : "transparent",
+            color: viewMode === "groups" ? "#ffffff" : "var(--text-color)",
+            cursor: "pointer",
+          }}>
+          📁 标签组列表
+        </button>
+        <button
+          onClick={() => setViewMode("kanban")}
+          style={{
+            padding: "4px 12px",
+            fontSize: "12px",
+            fontWeight: 600,
+            borderRadius: "6px",
+            border: "none",
+            backgroundColor: viewMode === "kanban" ? "var(--primary-color, #6366f1)" : "transparent",
+            color: viewMode === "kanban" ? "#ffffff" : "var(--text-color)",
+            cursor: "pointer",
+          }}>
+          📋 工作区看板
+        </button>
+      </div>
+
+      {viewMode === "kanban" ? (
+        <TabKanbanBoard />
+      ) : (
+        <>
+          {/* 控流面板 B: 【数据视角】Tab Groups 允许同步到的云节点 */}
       <div className="native-card" style={{ borderColor: "var(--primary-color)", backgroundColor: "rgba(79, 70, 229, 0.02)" }}>
         <div style={{ fontWeight: 600, fontSize: "12px", marginBottom: "4px" }}>
           📡 【数据选途径】Tab Groups 标签组允许同步到的云端 Backend 节点：
@@ -498,6 +537,8 @@ export const TabGroupsPage: React.FC = () => {
           ))}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

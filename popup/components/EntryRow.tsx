@@ -43,8 +43,23 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
   const pinnedEntryIds = useAtomValue(pinnedEntryIdsAtom) || [];
   const isPinned = pinnedEntryIds.includes(entry.id);
 
+  const [isUnmasked, setIsUnmasked] = React.useState(false);
+
   const isSelected = selectedEntryIds.has(entry.id);
   const isCurrentCopied = entry.content === clipboardSnapshot?.content;
+
+  const isSensitive = isSensitiveContent(entry.content);
+  const displayContent = React.useMemo(() => {
+    if (settings.autoMaskSensitiveData && isSensitive && !isUnmasked) {
+      return maskSensitiveContent(entry.content);
+    }
+    return entry.content;
+  }, [entry.content, settings.autoMaskSensitiveData, isSensitive, isUnmasked]);
+
+  const autoTags = React.useMemo(() => {
+    if (!settings.autoClassifyEntries) return [];
+    return classifyEntryContent(entry.content);
+  }, [entry.content, settings.autoClassifyEntries]);
 
   const handleOpenEdit = () => {
     modals.open({
@@ -79,7 +94,7 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
         handleOpenEdit();
       }}
       title="单击复制，双击编辑">
-      {/* 选中 Checkbox (放大防误触点击区域) */}
+      {/* 选中 Checkbox */}
       <div
         style={{
           display: "flex",
@@ -147,12 +162,49 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
           textOverflow: "ellipsis",
           fontSize: "12px",
           minWidth: 0,
+          color: isSensitive && !isUnmasked ? "#e11d48" : "inherit",
+          fontFamily: isSensitive && !isUnmasked ? "monospace" : "inherit",
         }}>
-        {entry.content.slice(0, 500)}
+        {displayContent.slice(0, 500)}
       </span>
+
+      {/* 脱敏眼睛切换锁 */}
+      {isSensitive && (
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsUnmasked(!isUnmasked);
+          }}
+          style={{
+            fontSize: "11px",
+            cursor: "pointer",
+            marginLeft: "4px",
+            opacity: 0.8,
+            padding: "1px 4px",
+            borderRadius: "4px",
+            backgroundColor: "rgba(225, 29, 72, 0.1)",
+          }}
+          title={isUnmasked ? "点此加密遮罩" : "点此显示明文"}>
+          {isUnmasked ? "👁️ 显" : "🔒 隐"}
+        </span>
+      )}
 
       {/* 标签与字符数 */}
       <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0, marginLeft: "8px" }}>
+        {autoTags.map((tag) => (
+          <span
+            key={tag}
+            style={{
+              fontSize: "10px",
+              padding: "1px 4px",
+              borderRadius: "4px",
+              backgroundColor: "rgba(99, 102, 241, 0.15)",
+              color: "#6366f1",
+              fontWeight: 600,
+            }}>
+            {tag}
+          </span>
+        ))}
         {entryIdToTags[entry.id]?.slice().sort().map((tag) => (
           <TagBadge key={tag} tag={tag} />
         ))}

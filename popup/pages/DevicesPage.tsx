@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+
 import { getDiscoveredDevices, registerCurrentDevice } from "~storage/discoveredDevices";
 import {
   type DevicePermissionRule,
@@ -12,6 +13,7 @@ import { getSyncSettings, type SyncSettings } from "~storage/syncSettings";
 import type { Settings } from "~types/settings";
 import { runFullSync } from "~utils/sync/engine";
 import type { DeviceInfo } from "~utils/sync/provider";
+import { webrtcSyncService, type P2PStatus } from "~utils/sync/webrtcSync";
 
 function formatLastSync(timestamp: number | null | undefined): string {
   if (!timestamp) return "从未同步";
@@ -47,6 +49,13 @@ export const DevicesPage: React.FC = () => {
   const [selectedTargetDeviceId, setSelectedTargetDeviceId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
 
+  // E2EE & P2P State
+  const [e2eeEnabled, setE2eeEnabled] = useState(false);
+  const [e2eePassphrase, setE2eePassphrase] = useState("");
+  const [p2pStatus, setP2pStatus] = useState<P2PStatus>("disconnected");
+  const [localOfferSDP, setLocalOfferSDP] = useState("");
+  const [remoteSDP, setRemoteSDP] = useState("");
+
   const loadAllState = async () => {
     const [settings, master, devices, sysSt] = await Promise.all([
       getSyncSettings(),
@@ -57,6 +66,8 @@ export const DevicesPage: React.FC = () => {
     setSyncSettingsState(settings);
     setMasterState(master);
     setSysSettings(sysSt);
+    setE2eeEnabled(sysSt.e2eeEnabled || false);
+    setE2eePassphrase(sysSt.e2eePassphrase || "");
 
     const registered = await registerCurrentDevice(settings);
     setDiscoveredDevices(registered);
@@ -64,7 +75,45 @@ export const DevicesPage: React.FC = () => {
 
   useEffect(() => {
     loadAllState();
+    const unsub = webrtcSyncService.onStatusChange((status) => setP2pStatus(status));
+    return () => unsub();
   }, []);
+
+  const handleSaveE2EE = async (enabled: boolean, passphrase: string) => {
+    if (!sysSettings) return;
+    const updated = { ...sysSettings, e2eeEnabled: enabled, e2eePassphrase: passphrase };
+    setSysSettings(updated);
+    await setSettings(updated);
+    showToast("E2EE 端到端零知识加密配置已保存！");
+  };
+
+  const handleCreateOffer = async () => {
+    try {
+      const sdp = await webrtcSyncService.createOffer();
+      setLocalOfferSDP(sdp);
+      showToast("已成功生成 P2P Offer 信令，请复制发送给对端设备！");
+    } catch (e) {
+      showToast("生成 P2P 信令失败: " + String(e));
+    }
+  };
+
+  const handleConnectRemote = async () => {
+    if (!remoteSDP) return;
+    try {
+      if (!localOfferSDP) {
+        // 作为接收方生成 Answer
+        const answerSDP = await webrtcSyncService.acceptOfferAndCreateAnswer(remoteSDP);
+        setLocalOfferSDP(answerSDP);
+        showToast("已成功生成 Answer 信令，请复制回传给主控端！");
+      } else {
+        // 主控端设置 Answer 完成握手
+        await webrtcSyncService.acceptAnswer(remoteSDP);
+        showToast("正在建立 WebRTC 直连 Channel...");
+      }
+    } catch (e) {
+      showToast("解析对端信令失败: " + String(e));
+    }
+  };
 
   const handleToggleLocalUpload = async (
     modality: "clipboard" | "bookmarks" | "sessions" | "history" | "extensions",
@@ -326,6 +375,92 @@ export const DevicesPage: React.FC = () => {
               />
               <span>🧩 扩展列表</span>
             </label>
+          </div>
+        </div>
+
+        {/* E2EE 端到端加密卡片 */}
+        <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+          <div className="flex-between">
+            <span style={{ fontWeight: 600, fontSize: "11px" }}>🔐 端到端零知识加密 (E2EE - AES-256-GCM)</span>
+            <label className="native-switch" title="开启 E2EE 本地加密后再上云">
+              <input
+                type="checkbox"
+                checked={e2eeEnabled}
+                onChange={(e) => {
+                  setE2eeEnabled(e.target.checked);
+                  handleSaveE2EE(e.target.checked, e2eePassphrase);
+                }}
+              />
+              <span className="native-slider"></span>
+            </label>
+          </div>
+          {e2eeEnabled && (
+            <div style={{ display: "flex", gap: "6px" }}>
+              <input
+                type="password"
+                className="native-input flex-1"
+                placeholder="设置统一的 E2EE 主解密密码..."
+                value={e2eePassphrase}
+                onChange={(e) => setE2eePassphrase(e.target.value)}
+              />
+              <button
+                className="native-btn native-btn-sm"
+                onClick={() => handleSaveE2EE(e2eeEnabled, e2eePassphrase)}>
+                保存密码
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 局域网 WebRTC P2P 毫秒级直连卡片 */}
+        <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+          <div className="flex-between">
+            <span style={{ fontWeight: 600, fontSize: "11px" }}>⚡ 局域网 WebRTC 毫秒级 P2P 直连通道</span>
+            <span
+              className={`native-badge ${
+                p2pStatus === "connected"
+                  ? "native-badge-green"
+                  : p2pStatus === "connecting"
+                  ? "native-badge-orange"
+                  : ""
+              }`}>
+              {p2pStatus === "connected" ? "🟢 直连已建立 (<10ms)" : p2pStatus === "connecting" ? "🟡 握手中..." : "⚪ 未连接"}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button className="native-btn native-btn-sm flex-1" onClick={handleCreateOffer}>
+              1. 发起/生成 P2P 信令
+            </button>
+          </div>
+
+          {localOfferSDP && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>本机信令 (请复制发送给对端):</span>
+              <textarea
+                className="native-input"
+                style={{ fontSize: "10px", height: "45px" }}
+                readOnly
+                value={localOfferSDP}
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+              />
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>粘贴对端发送的信令并连接:</span>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="在此粘贴对端信令 JSON..."
+                value={remoteSDP}
+                onChange={(e) => setRemoteSDP(e.target.value)}
+              />
+              <button className="native-btn native-btn-sm" onClick={handleConnectRemote}>
+                2. 握手配对
+              </button>
+            </div>
           </div>
         </div>
 
