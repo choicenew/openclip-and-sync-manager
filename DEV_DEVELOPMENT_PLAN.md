@@ -1,6 +1,6 @@
 # 🚀 OpenClip Sync (`dev` 分支) 架构演进与路线图 (Roadmap)
 
-本文档实时记录了 `dev` 分支的架构演进规划、已交付功能与未来解耦模块开发路线。
+本文档实时记录了 `dev` 分支的架构演进规划、市场调研对比、已交付功能与未来解耦模块开发路线。
 
 ---
 
@@ -12,9 +12,9 @@
    - **核心文件**：[e2ee.ts](file:///C:/Users/Administrator/StudioProjects/openclip-and-sync-manager/utils/crypto/e2ee.ts), [db/core.ts](file:///C:/Users/Administrator/StudioProjects/openclip-and-sync-manager/utils/db/core.ts)
    - **特性**：基于 Web Crypto 原生 PBKDF2 密钥派生与 AES-256-GCM 认证加密。所有数据在离开本端上云前全量转换为 `ENC:v1:...` 密文，云端无法破解。
 
-2. **📋 工作区看板与标签页休眠 (Workspace Kanban & Tab Suspend)**
+2. **📋 可视化工作区看板与标签页休眠 (Workspace Kanban & Tab Suspend)**
    - **核心文件**：[TabKanbanBoard.tsx](file:///C:/Users/Administrator/StudioProjects/openclip-and-sync-manager/popup/components/TabKanbanBoard.tsx), [tabSuspend.ts](file:///C:/Users/Administrator/StudioProjects/openclip-and-sync-manager/utils/tabSuspend.ts)
-   - **特性**：基于 `@dnd-kit` 实现多列拖拽式工作区看板，支持调用原生的 `chrome.tabs.discard()` 一键休眠后台闲置网页以极大节省系统内存。
+   - **特性**：基于 `@dnd-kit` 实现多列拖拽式工作区看板，支持分配工作区并批量快照，调用原生的 `chrome.tabs.discard()` 一键休眠后台闲置网页以极大节省系统内存。
 
 3. **🏷️ 智能分类、脱敏保护与 TTL 定时销毁**
    - **核心文件**：[entryClassifier.ts](file:///C:/Users/Administrator/StudioProjects/openclip-and-sync-manager/utils/entryClassifier.ts), [entryMasking.ts](file:///C:/Users/Administrator/StudioProjects/openclip-and-sync-manager/utils/entryMasking.ts)
@@ -34,19 +34,20 @@
 
 ---
 
-## 📊 二、 完整 Roadmap 功能状态一览表
+## 📊 二、 完整 Roadmap 功能与市场对比状态一览表
 
-| 模块 / 功能 | 详细说明 | 解耦与设计原则 | 当前状态 |
+| 模块 / 功能 | 详细说明 | 架构与设计原则 | 交付状态 |
 | :--- | :--- | :--- | :---: |
-| **🔐 E2EE 零知识加密** | PBKDF2 派生密钥 + AES-256-GCM 离端加密 | 零服务端依赖 / 密文上云 | ✅ 已完成并分发 |
-| **📋 看板与 Tab 休眠** | `@dnd-kit` 看板 + 原生 `chrome.tabs.discard` | 内存极致释放 / 工作区拖拽 | ✅ 已完成并分发 |
-| **🏷️ 智能打标与 TTL** | `#URL/#Code/#Secret` 识别，脱敏保护与倒计时销毁 | 隐私保护与动态遮罩 | ✅ 已完成并分发 |
-| **⚡ WebRTC P2P 直连** | 同 Wi-Fi 局域网 `<10ms` 极速点对点数据传输 | 无云端中间件直连 | ✅ 已完成并分发 |
-| **🔎 极速搜索弹框** | 跨模态模糊检索，独立可关闭、可设置停用 | 100% 纯只读 UI 层 | ✅ 已完成并分发 |
-| **🚀 双轨 CI/CD 自动打包** | 自动生成 `dev-preview` Chrome/Firefox 安装包 | 独立 GitHub Workflow | ✅ 已完成并分发 |
-| **🎨 多模态图片与 JSON 美化** | 图片 Base64 预览与 JSON/SQL 一键高亮排版 | 渲染展示层增强 | ⏳ 规划中 (Next) |
-| **📱 网址一键生成二维码** | 复制 URL 显示二维码，手机扫码即可无缝直接打开 | 跨端极速小工具 | ⏳ 规划中 |
-| **🖥️ 系统级 Native 托盘伴侣** | 突破浏览器最小化限制，支持 OS 全局剪贴板捕获 | Native Messaging 进程 | 🔮 远期规划 |
+| **🔐 E2EE 零知识加密** | PBKDF2 派生密钥 + AES-256-GCM 离端加密 | 零服务端依赖 / 密文上云 | ✅ **已交付 (`dev`)** |
+| **📋 可视化看板与 Tab 休眠** | `@dnd-kit` 拖拽看板 + 原生 `chrome.tabs.discard` | 内存极致释放 / 工作区拖拽 | ✅ **已交付 (`dev`)** |
+| **🏷️ 智能打标与脱敏 TTL** | `#URL/#Code/#Secret` 识别，脱敏保护与倒计时销毁 | 隐私保护与动态遮罩 | ✅ **已交付 (`dev`)** |
+| **⚡ WebRTC P2P 直连** | 同 Wi-Fi 局域网 `<10ms` 极速点对点数据传输 | 无云端中间件直连 | ✅ **已交付 (`dev`)** |
+| **🔎 独立极速搜索弹框** | 跨模态模糊检索，独立可关闭、可设置停用 | 100% 纯只读 UI 层 | ✅ **已交付 (`dev`)** |
+| **🚀 双轨 CI/CD 自动打包** | 自动生成 `dev-preview` Chrome/Firefox 安装包 | 独立 GitHub Workflow | ✅ **已交付 (`dev`)** |
+| **🎨 多模态图片与 JSON 美化** | 图片 Base64 预览与 JSON/SQL 一键高亮排版 | 渲染展示层增强 | ⏳ **规划中 (Next)** |
+| **📱 网址二维码与 PWA 连接** | 网址一键生成二维码，手机扫码与 PWA/快捷指令 | 跨端极速小工具 | ⏳ **规划中** |
+| **⚡ 剪贴板自动化与 Webhook** | 自定义正则拦截与 HTTP Webhook 管道触发 | 事件自动化处理 | ⏳ **规划中** |
+| **🖥️ 系统级 Native 托盘伴侣** | 突破浏览器最小化限制，支持 OS 全局剪贴板捕获 | Native Messaging 进程 | 🔮 **远期规划** |
 
 ---
 

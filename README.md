@@ -47,21 +47,37 @@
 ### 2. 🗂️ Tab Groups 与会话快照 (TSM Native Equivalent)
 - **原生兼容 Tab Session Manager**：实时侦测 Chrome / Edge 标签组 (Tab Groups) 变化。
 - **自动定时快照与恢复**：启动/关闭浏览器自动保存会话快照、定时自动备份与 URL 黑名单排除。
+- **📋 可视化工作区看板 (Workspace Kanban)**：基于 `@dnd-kit` 构建，支持多列拖拽整理标签页、分配工作区并批量快照。
+- **💤 闲置标签页休眠 (Tab Suspend)**：集成原生 `chrome.tabs.discard()`，一键或定时休眠后台闲置标签页，极致释放系统内存。
 
-### 3. 🔖 跨设备书签树同步 (Bookmarks Tree Sync)
+### 3. 🔐 端到端零知识加密 (E2EE - AES-256-GCM)
+- **零服务端依赖离端加密**：基于 Web Crypto 原生 PBKDF2 派生密钥与 AES-256-GCM 认证加密，所有剪贴板与数据在离开本端上云前全量转换为 `ENC:v1:...` 密文，云端无法破解。
+
+### 4. 🏷️ 智能特征分类、脱敏保护与 TTL 自动销毁
+- **智能 Badge 打标**：自动识别并标注 `#URL`, `#Code`, `#Email`, `#Secret` 智能分类。
+- **敏感数据脱敏**：针对身份证号、JWT Token、API Secrets (如 `sk-...`, `ghp_...`) 自动打上打码掩码，支持列表一键眼睛图标解锁显现。
+- **TTL 自动定时销毁**：可自定义设定敏感历史条目的 TTL 销毁分钟数，倒计时结束后自动永久清空。
+
+### 5. ⚡ 局域网 WebRTC 毫秒级 P2P 直连通道
+- **< 10ms 无感瞬时同步**：同一 Wi-Fi 局域网下通过 `RTCDataChannel` 建立点对点直连通道，无需云端中转，实现极速剪贴板实时推拉。
+
+### 6. 🔎 独立可关闭的极速搜索弹框 (Omnibox Search Modal)
+- **Spotlight / Raycast 式极速搜索**：支持跨剪贴板、标签页、书签进行模糊检索，支持快捷键呼出、顶部独立 `✕` 按钮与 `Esc` 快捷退出，并在【设置】中提供停用开关。
+
+### 7. 🔖 跨设备书签树同步 (Bookmarks Tree Sync)
 - 双向检索与合并跨设备书签树，智能去重，支持一键打开与全局快速搜索。
 
-### 4. 📜 浏览历史与 30 天云备份 (Browser History)
+### 8. 📜 浏览历史与 30 天云备份 (Browser History)
 - 自动备份 30 天浏览历史，支持按时间线与域名快捷检索，跨设备无缝查阅历史足迹。
 
-### 5. 🧩 已安装扩展清单备份 (Installed Extensions Catalog)
+### 9. 🧩 已安装扩展清单备份 (Installed Extensions Catalog)
 - 备份已安装浏览器扩展清单，更换新设备时可一键定位并从 Web Store 快速恢复安装。
 
-### 6. 👑 主辅设备墙控制流 (Master-Slave Primary/Auxiliary Control Flow)
+### 10. 👑 主辅设备墙控制流 (Master-Slave Primary/Auxiliary Control Flow)
 - **主设备 (Master Device)**：拥有最高云端控制权与规则制定能力，在云端标记设备锁。
 - **辅助设备自动降级 (Auxiliary Demotion)**：其他设备检测到云端主设备标记时自动降级，禁止篡改规则或越权拉取其他节点数据。
 
-### 7. ☁️ 7 大无损云端 Backend 存储引擎 (Multi-Cloud Storage)
+### 11. ☁️ 7 大无损云端 Backend 存储引擎 (Multi-Cloud Storage)
 支持同时配置与切换 7 大主流私有云后端：
 1. **WebDAV** — 坚果云 (Nutstore)、Nextcloud、群晖 NAS 及自建 WebDAV (含 Gzip 文本高能压缩)
 2. **AWS S3 / MinIO** — 企业级与自建对象存储 (支持 Custom Endpoint, Bucket, AccessKey, SecretKey)
@@ -80,13 +96,14 @@
 | 模块 / 功能 | 详细说明 | 设计原则 | 状态 |
 | :--- | :--- | :--- | :---: |
 | **🔐 E2EE 零知识加密** | PBKDF2 派生密钥 + AES-256-GCM 离端加密 | 零服务端依赖 / 密文上云 | ✅ 已交付 (`dev`) |
-| **📋 看板与 Tab 休眠** | `@dnd-kit` 看板 + 原生 `chrome.tabs.discard` | 内存极致释放 / 工作区拖拽 | ✅ 已交付 (`dev`) |
-| **🏷️ 智能打标与 TTL** | `#URL/#Code/#Secret` 识别，脱敏保护与倒计时销毁 | 隐私保护与动态遮罩 | ✅ 已交付 (`dev`) |
+| **📋 可视化看板与 Tab 休眠** | `@dnd-kit` 拖拽看板 + 原生 `chrome.tabs.discard` | 内存极致释放 / 工作区拖拽 | ✅ 已交付 (`dev`) |
+| **🏷️ 智能打标与脱敏 TTL** | `#URL/#Code/#Secret` 识别，脱敏保护与倒计时销毁 | 隐私保护与动态遮罩 | ✅ 已交付 (`dev`) |
 | **⚡ WebRTC P2P 直连** | 同 Wi-Fi 局域网 `<10ms` 极速点对点数据传输 | 无云端中间件直连 | ✅ 已交付 (`dev`) |
-| **🔎 极速搜索弹框** | 跨模态模糊检索，独立可关闭、可设置停用 | 100% 纯只读 UI 层 | ✅ 已交付 (`dev`) |
+| **🔎 独立极速搜索弹框** | 跨模态模糊检索，独立可关闭、可设置停用 | 100% 纯只读 UI 层 | ✅ 已交付 (`dev`) |
 | **🚀 双轨 CI/CD 自动打包** | 自动生成 `dev-preview` Chrome/Firefox 安装包 | 独立 GitHub Workflow | ✅ 已交付 (`dev`) |
 | **🎨 多模态图片与 JSON 美化** | 图片 Base64 预览与 JSON/SQL 一键高亮排版 | 展层渲染增强 | ⏳ 规划中 (Next) |
-| **📱 网址一键生成二维码** | 复制 URL 显示二维码，手机扫码即可无缝直接打开 | 跨端极速小工具 | ⏳ 规划中 |
+| **📱 网址二维码与 PWA 连接** | 网址一键生成二维码，手机扫码与 PWA/快捷指令 | 跨端极速小工具 | ⏳ 规划中 |
+| **⚡ 剪贴板自动化与 Webhook** | 自定义正则拦截与 HTTP Webhook 管道触发 | 事件自动化处理 | ⏳ 规划中 |
 | **🖥️ 系统级 Native 托盘伴侣** | 突破浏览器最小化限制，支持 OS 全局剪贴板捕获 | Native Messaging 进程 | 🔮 远期规划 |
 
 ---
