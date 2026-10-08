@@ -585,7 +585,29 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. 🔐 端到端零知识加密 (E2EE) */}
+      {/* 4. 🔎 全局 浮动快捷搜索框 (Omnibox Search) */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderColor: "#3b82f6" }}>
+        <div className="flex-between">
+          <div style={{ fontWeight: 600, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>🔎</span>
+            <span>全局 浮动快捷搜索框 (Omnibox Search Modal)</span>
+          </div>
+          <label className="native-switch" title="独立开启/关闭全局搜索框功能">
+            <input
+              type="checkbox"
+              checked={settings.enableOmniboxSearch !== false}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, enableOmniboxSearch: e.target.checked }))}
+            />
+            <span className="native-slider"></span>
+          </label>
+        </div>
+
+        <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
+          开启后可在浏览器任意位置弹窗极速模糊检索剪贴板、标签页与书签，支持独立点击右上角关闭按钮或按 Esc 键关闭。如果不勾选，该功能完全停用且不占资源。
+        </div>
+      </div>
+
+      {/* 5. 🔐 端到端零知识加密 (E2EE) */}
       <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderColor: "#8b5cf6" }}>
         <div className="flex-between">
           <div style={{ fontWeight: 600, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>

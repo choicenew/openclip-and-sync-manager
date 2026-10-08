@@ -1,0 +1,75 @@
+name: Dev Branch Preview Build & Release
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+jobs:
+  dev-build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Get Version from package.json
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Current Version: $VERSION"
+
+      - name: Install & Build Dev Extension Packages
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm build
+          pnpm package
+          pnpm build:firefox
+          pnpm package:firefox
+
+      - name: Upload Chrome MV3 Dev Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclip-sync-dev-v${{ env.VERSION }}-chrome-mv3
+          path: build/chrome-mv3-prod.zip
+          retention-days: 14
+
+      - name: Upload Firefox MV2 Dev Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclip-sync-dev-v${{ env.VERSION }}-firefox-mv2
+          path: build/firefox-mv2-prod.zip
+          retention-days: 14
+
+      - name: Publish Dev Preview Prerelease on GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-preview-v${{ env.VERSION }}
+          name: OpenClip Sync Dev Preview v${{ env.VERSION }}
+          body: |
+            🚀 **OpenClip Sync Dev Branch Preview Build (v${{ env.VERSION }})**
+            本版本为 `dev` 分支独立分发构建包，包含以下最新解耦增强：
+            - 🔍 全局 独立可关闭的 CMD/Alt+K 极速浮动搜索弹框
+            - 🔐 端到端零知识加密 (E2EE - AES-256-GCM)
+            - 📋 工作区看板与标签页休眠 (Workspace Kanban & Tab Suspend)
+            - 🏷️ 智能特征分类、脱敏保护与 TTL 自动销毁
+            - ⚡ 局域网 WebRTC 毫秒级 P2P 直连通道
+          files: |
+            ./build/chrome-mv3-prod.zip
+            ./build/firefox-mv2-prod.zip
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

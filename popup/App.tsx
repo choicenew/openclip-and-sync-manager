@@ -14,6 +14,7 @@ import { Tab } from "~types/tab";
 import { VERSION } from "~utils/version";
 
 import { ShortcutBadge } from "./components/ShortcutBadge";
+import { OmniboxSearchModal } from "./components/OmniboxSearchModal";
 import { useApp } from "./hooks/useApp";
 import { SEARCH_INPUT_ID } from "./hooks/useEntryListNavigation";
 import { AllPage } from "./pages/AllPage";
@@ -44,6 +45,7 @@ export const App: React.FC = () => {
 
   const [search, setSearch] = useAtom(searchAtom);
   const [tab, setTab] = useAtom(tabAtom);
+  const [isOmniboxOpen, setIsOmniboxOpen] = useState(false);
 
   const [masterState, setMasterState] = useState<MasterDeviceState>({
     isMasterDevice: false,
@@ -116,6 +118,14 @@ export const App: React.FC = () => {
 
         {/* 顶部快捷操作入口 (恢复 ⚙️ 设置 专属快捷按钮) */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <button
+            title="独立极速搜索弹框 (Esc 或点击关闭按钮可独立退出)"
+            className="native-btn native-btn-sm"
+            style={{ backgroundColor: "rgba(99, 102, 241, 0.15)", color: "#6366f1" }}
+            onClick={() => setIsOmniboxOpen(true)}>
+            🔍 极速搜索
+          </button>
+
           <button
             title="快捷打开系统与同步设置"
             className="native-btn native-btn-sm"
@@ -253,6 +263,9 @@ export const App: React.FC = () => {
           .with(Tab.Enum.Settings, () => <SettingsPage />)
           .exhaustive()}
       </div>
+
+      {/* 独立可关闭的全量搜索弹框 */}
+      <OmniboxSearchModal isOpen={isOmniboxOpen} onClose={() => setIsOmniboxOpen(false)} />
     </div>
   );
 };
