@@ -585,7 +585,102 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. 关键词自动拦截与敏感词过滤 */}
+      {/* 4. 🔐 端到端零知识加密 (E2EE) */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderColor: "#8b5cf6" }}>
+        <div className="flex-between">
+          <div style={{ fontWeight: 600, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>🔐</span>
+            <span>端到端零知识加密 (E2EE - AES-256-GCM)</span>
+          </div>
+          <label className="native-switch" title="开启 E2EE 端到端加密">
+            <input
+              type="checkbox"
+              checked={!!settings.e2eeEnabled}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, e2eeEnabled: e.target.checked }))}
+            />
+            <span className="native-slider"></span>
+          </label>
+        </div>
+
+        <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
+          采用 Web Crypto 原生 PBKDF2 + AES-256-GCM 加密。数据在离开本端上云前全量转换为密文 (`ENC:v1:...`)，云端服务商无法解密内容。
+        </div>
+
+        {settings.e2eeEnabled && (
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "4px" }}>
+            <span style={{ fontSize: "11px", width: "130px" }}>E2EE 主解密密码:</span>
+            <input
+              type="password"
+              className="native-input flex-1"
+              placeholder="请输入跨设备统一的主解密密码..."
+              value={settings.e2eePassphrase || ""}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, e2eePassphrase: e.target.value }))}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 5. 🏷️ 智能分类、敏感脱敏保护与 TTL 定时销毁 */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderColor: "#ec4899" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+          <span>🏷️</span>
+          <span>智能特征分类、脱敏保护与 TTL 自动销毁</span>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "11px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.autoClassifyEntries !== false}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, autoClassifyEntries: e.target.checked }))}
+            />
+            <span>自动特征打标 (#URL, #Code, #Email, #Secret)</span>
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.autoMaskSensitiveData !== false}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, autoMaskSensitiveData: e.target.checked }))}
+            />
+            <span>敏感数据脱敏遮罩保护 (身份证/Token/API Key)</span>
+          </label>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "4px" }}>
+          <span style={{ fontSize: "11px", width: "180px" }}>敏感条目 TTL 定时销毁 (分钟):</span>
+          <input
+            type="number"
+            className="native-input flex-1"
+            placeholder="0 表示不自动销毁 (例如 10 表示 10 分钟后清空)"
+            value={settings.sensitiveDataTTLMinutes ?? 0}
+            onChange={(e) => updateSettings((prev: any) => ({ ...prev, sensitiveDataTTLMinutes: Number(e.target.value) || 0 }))}
+          />
+        </div>
+      </div>
+
+      {/* 6. 💤 标签页闲置休眠 (Tab Suspend) */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderColor: "#10b981" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+          <span>💤</span>
+          <span>闲置标签页休眠与内存释放 (Tab Suspend)</span>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <span style={{ fontSize: "11px", width: "180px" }}>后台闲置标签页自动挂起:</span>
+          <select
+            className="native-select flex-1"
+            value={settings.autoTabSuspendMinutes ?? 0}
+            onChange={(e) => updateSettings((prev: any) => ({ ...prev, autoTabSuspendMinutes: Number(e.target.value) }))}>
+            <option value={0}>手动休眠 (在 Tab 页面看板中手动触发)</option>
+            <option value={15}>闲置 15 分钟后自动休眠挂起</option>
+            <option value={30}>闲置 30 分钟后自动休眠挂起</option>
+            <option value={60}>闲置 60 分钟后自动休眠挂起</option>
+          </select>
+        </div>
+      </div>
+
+      {/* 7. 关键词自动拦截与敏感词过滤 */}
       <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div className="flex-between">
           <span style={{ fontWeight: 600, fontSize: "12px" }}>🛡️ 特定关键词自动拦截与删除 (Keyword Filter)</span>
