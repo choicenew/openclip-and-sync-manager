@@ -1,3 +1,15 @@
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { useAtom } from "jotai";
 import React, { useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
@@ -16,7 +28,7 @@ import { addFavoriteEntryIds, deleteFavoriteEntryIds } from "~storage/favoriteEn
 import { addPinnedEntryIds, deletePinnedEntryIds } from "~storage/pinnedEntryIds";
 import { setSettings } from "~storage/settings";
 import type { Entry } from "~types/entry";
-import { deleteEntries } from "~utils/storage";
+import { _setEntries, deleteEntries } from "~utils/storage";
 
 import { EntryRow } from "./EntryRow";
 import { KeyboardHint } from "./KeyboardHint";
@@ -64,6 +76,26 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
 
   const selectedEntryIds = useSet<string>();
   const entryIdsStringified = useMemo(() => JSON.stringify(safeEntries.map(({ id }) => id)), [safeEntries]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 3,
+      },
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = safeEntries.findIndex((e) => e.id === active.id);
+      const newIndex = safeEntries.findIndex((e) => e.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const nextEntries = arrayMove(safeEntries, oldIndex, newIndex);
+        _setEntries(nextEntries);
+      }
+    }
+  };
 
   useEffect(() => {
     selectedEntryIds.clear();
@@ -210,19 +242,23 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
         {safeEntries.length === 0 ? (
           noEntriesOverlay
         ) : (
-          <AutoSizer>
-            {({ height, width }) => (
-              <FixedSizeList
-                ref={listRef}
-                height={height}
-                width={width}
-                itemData={{ entries: safeEntries, selectedEntryIds, selectedEntryIndex }}
-                itemCount={safeEntries.length}
-                itemSize={33}>
-                {EntryRowRenderer}
-              </FixedSizeList>
-            )}
-          </AutoSizer>
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <SortableContext items={safeEntries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+              <AutoSizer>
+                {({ height, width }) => (
+                  <FixedSizeList
+                    ref={listRef}
+                    height={height}
+                    width={width}
+                    itemData={{ entries: safeEntries, selectedEntryIds, selectedEntryIndex }}
+                    itemCount={safeEntries.length}
+                    itemSize={33}>
+                    {EntryRowRenderer}
+                  </FixedSizeList>
+                )}
+              </AutoSizer>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 

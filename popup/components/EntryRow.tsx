@@ -23,6 +23,8 @@ import { EntryPinAction } from "./EntryPinAction";
 import { EditEntryModalContent } from "./modals/EditEntryModalContent";
 import { TagBadge } from "./TagBadge";
 import { TagSelect } from "./TagSelect";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { classifyEntryContent } from "~utils/entryClassifier";
 import { isSensitiveContent, maskSensitiveContent } from "~utils/entryMasking";
 import { analyzeContent } from "~utils/contentPreview";
@@ -104,15 +106,22 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
     });
   };
 
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: entry.id,
+  });
+
   return (
     <div
+      ref={setNodeRef}
       style={{
         display: "flex",
         alignItems: "center",
         height: "32px",
         padding: "0 10px",
         borderBottom: "1px solid var(--border-color)",
-        backgroundColor: isSelected
+        backgroundColor: isDragging
+          ? "rgba(99, 102, 241, 0.25)"
+          : isSelected
           ? "rgba(79, 70, 229, 0.15)"
           : isKeyboardSelected
           ? "rgba(0, 0, 0, 0.05)"
@@ -122,13 +131,36 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
         borderLeft: isPinned ? "3px solid var(--primary-color)" : isKeyboardSelected ? "3px solid #6366f1" : "none",
         cursor: "pointer",
         userSelect: "none",
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : 1,
       }}
       onClick={() => copyEntry(entry)}
       onDoubleClick={(e) => {
         e.stopPropagation();
         handleOpenEdit();
       }}
-      title="单击复制，双击编辑">
+      title="单击复制，双击编辑，长按左侧 ⠿ 可拖拽重排">
+      {/* 拖拽手柄 Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "0 6px 0 0",
+          cursor: "grab",
+          color: "var(--text-dimmed, #94a3b8)",
+          fontSize: "14px",
+          fontWeight: 700,
+          userSelect: "none",
+        }}
+        title="按住拖拽自由重排次序">
+        ⠿
+      </div>
+
       {/* 选中 Checkbox */}
       <div
         style={{
