@@ -25,6 +25,10 @@ import { TagBadge } from "./TagBadge";
 import { TagSelect } from "./TagSelect";
 import { classifyEntryContent } from "~utils/entryClassifier";
 import { isSensitiveContent, maskSensitiveContent } from "~utils/entryMasking";
+import { analyzeContent } from "~utils/contentPreview";
+import { ImagePreviewModalContent } from "./modals/ImagePreviewModalContent";
+import { JsonFormattedModalContent } from "./modals/JsonFormattedModalContent";
+import { QRCodeModalContent } from "./modals/QRCodeModalContent";
 
 interface Props {
   entry: Entry;
@@ -61,11 +65,42 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
     return classifyEntryContent(entry.content);
   }, [entry.content, settings.autoClassifyEntries]);
 
+  const contentAnalysis = React.useMemo(() => analyzeContent(entry.content), [entry.content]);
+
   const handleOpenEdit = () => {
     modals.open({
       withCloseButton: false,
       padding: 0,
       children: <EditEntryModalContent entry={entry} />,
+    });
+  };
+
+  const handleOpenImagePreview = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!contentAnalysis.imageUrl) return;
+    modals.open({
+      withCloseButton: false,
+      padding: 0,
+      children: <ImagePreviewModalContent imageUrl={contentAnalysis.imageUrl} />,
+    });
+  };
+
+  const handleOpenJsonFormatted = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!contentAnalysis.formattedJson) return;
+    modals.open({
+      withCloseButton: false,
+      padding: 0,
+      children: <JsonFormattedModalContent formattedJson={contentAnalysis.formattedJson} />,
+    });
+  };
+
+  const handleOpenQRCode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    modals.open({
+      withCloseButton: false,
+      padding: 0,
+      children: <QRCodeModalContent url={entry.content.trim()} />,
     });
   };
 
@@ -217,6 +252,39 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
       <div
         style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "8px", flexShrink: 0 }}
         onClick={(e) => e.stopPropagation()}>
+        {/* 多模态功能：图片预览 */}
+        {contentAnalysis.isImage && settings.enableImagePreview !== false && (
+          <button
+            className="native-btn native-btn-sm"
+            style={{ fontSize: "11px", padding: "1px 5px", backgroundColor: "#3b82f6", color: "#ffffff" }}
+            title="点击预览图片"
+            onClick={handleOpenImagePreview}>
+            🖼️ 图片
+          </button>
+        )}
+
+        {/* 多模态功能：JSON 格式化美化 */}
+        {contentAnalysis.isJson && settings.enableJsonFormatting !== false && (
+          <button
+            className="native-btn native-btn-sm"
+            style={{ fontSize: "11px", padding: "1px 5px", backgroundColor: "#0284c7", color: "#ffffff" }}
+            title="点击预览 JSON 美化排版"
+            onClick={handleOpenJsonFormatted}>
+            {"{ }"} JSON
+          </button>
+        )}
+
+        {/* 多模态功能：网址手机二维码 */}
+        {contentAnalysis.isUrl && settings.enableQRCode !== false && (
+          <button
+            className="native-btn native-btn-sm"
+            style={{ fontSize: "11px", padding: "1px 5px", backgroundColor: "#10b981", color: "#ffffff" }}
+            title="生成手机扫码二维码"
+            onClick={handleOpenQRCode}>
+            📱 扫码
+          </button>
+        )}
+
         <TagSelect entryId={entry.id} />
         <EntryEditAction entry={entry} />
         <EntryPinAction entryId={entry.id} />

@@ -25,11 +25,15 @@
    - **特性**：同一 Wi-Fi 局域网下通过 `RTCDataChannel` 建立点对点直连通道，实现低于 10ms 的无感剪贴板推拉。
 
 5. **🔎 独立可关闭的极速搜索弹框 (Omnibox Search Modal)**
-   - **核心文件**：[OmniboxSearchModal.tsx](file:///C:/Users/Administrator/StudioProjects/openclip-and-sync-manager/popup/components/OmniboxSearchModal.tsx)
+   - **核心文件**：[OmniboxSearchModal.tsx](file:///D:/360Downloads/extension/popup/components/OmniboxSearchModal.tsx)
    - **特性**：支持跨剪贴板、标签页、书签极速模糊搜索，配备独立的 `✕` 关闭按钮与 `Esc` 退出机制，并在【设置】中提供独立停用开关。
 
-6. **🚀 双轨独立分发 CI/CD 工作流**
-   - **核心文件**：[.github/workflows/dev-build.yml](file:///C:/Users/Administrator/StudioProjects/openclip-and-sync-manager/.github/workflows/dev-build.yml)
+6. **🎨 多模态图片预览、JSON 美化与 📱 网址离端二维码**
+   - **核心文件**：[contentPreview.ts](file:///D:/360Downloads/extension/utils/contentPreview.ts), [qrcode.ts](file:///D:/360Downloads/extension/utils/qrcode.ts), [EntryRow.tsx](file:///D:/360Downloads/extension/popup/components/EntryRow.tsx)
+   - **特性**：自动检测 Base64/URL 图片并提供全屏高质预览，对 JSON 内容一键美化缩进排版，对 URL 网址生成 100% 离线安全的 SVG 二维码供手机无感扫码。
+
+7. **🚀 双轨独立分发 CI/CD 工作流**
+   - **核心文件**：[.github/workflows/dev-build.yml](file:///D:/360Downloads/extension/.github/workflows/dev-build.yml)
    - **特性**：配置了独立的 `dev` 构建工作流，每次 Push 自动编译并在 GitHub Releases 与 Actions 发布 `dev-preview` Prerelease 独立预览包。
 
 ---
@@ -57,8 +61,8 @@
 | **⚡ WebRTC P2P 直连** | 同 Wi-Fi 局域网 `<10ms` 极速点对点数据传输 | 无云端中间件直连 | ✅ **已交付 (`dev`)** |
 | **🔎 独立极速搜索弹框** | 跨模态模糊检索，独立可关闭、可设置停用 | 100% 纯只读 UI 层 | ✅ **已交付 (`dev`)** |
 | **🚀 双轨 CI/CD 自动打包** | 自动生成 `dev-preview` Chrome/Firefox 安装包 | 独立 GitHub Workflow | ✅ **已交付 (`dev`)** |
-| **🎨 多模态图片与 JSON 美化** | 图片 Base64 预览与 JSON/SQL 一键高亮排版 | 渲染展示层增强 | ⏳ **规划中 (Next)** |
-| **📱 网址二维码与 PWA 连接** | 网址一键生成二维码，手机扫码与 PWA/快捷指令 | 跨端极速小工具 | ⏳ **规划中** |
+| **🎨 多模态图片与 JSON 美化** | 图片 Base64 预览与 JSON/SQL 一键高亮排版 | 渲染展示层增强 | ✅ **已交付 (`dev`)** |
+| **📱 网址二维码与 PWA 连接** | 网址一键生成二维码，手机扫码与 PWA/快捷指令 | 跨端极速小工具 (100% 离端) | ✅ **已交付 (`dev`)** |
 | **⚡ 剪贴板自动化与 Webhook** | 自定义正则拦截与 HTTP Webhook 管道触发 | 事件自动化处理 | ⏳ **规划中** |
 | **🖥️ 系统级 Native 托盘伴侣** | 突破浏览器最小化限制，支持 OS 全局剪贴板捕获 | Native Messaging 进程 | 🔮 **远期规划** |
 

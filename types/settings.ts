@@ -74,6 +74,10 @@ export const defaultSettings = {
   sensitiveDataTTLMinutes: 0, // 0 表示不自动销毁，>0 表示分钟数
   // 全局 CMD/Alt+K 浮动快捷搜索框
   enableOmniboxSearch: true,
+  // 多模态与快捷工具开关
+  enableImagePreview: true,
+  enableJsonFormatting: true,
+  enableQRCode: true,
   // 标签页挂起与休眠
   autoTabSuspendMinutes: 0, // 0 表示不自动挂起，>0 表示闲置分钟数
 };
@@ -131,6 +135,9 @@ export const Settings = z
     sensitiveDataTTLMinutes: z.number().default(defaultSettings.sensitiveDataTTLMinutes),
     autoTabSuspendMinutes: z.number().default(defaultSettings.autoTabSuspendMinutes),
     enableOmniboxSearch: z.boolean().default(defaultSettings.enableOmniboxSearch),
+    enableImagePreview: z.boolean().default(defaultSettings.enableImagePreview),
+    enableJsonFormatting: z.boolean().default(defaultSettings.enableJsonFormatting),
+    enableQRCode: z.boolean().default(defaultSettings.enableQRCode),
   })
   .default(defaultSettings);
 export type Settings = z.infer<typeof Settings>;

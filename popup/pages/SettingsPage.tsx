@@ -607,6 +607,43 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* 4.5 🎨 多模态与快捷小工具开关设置 */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderColor: "#0284c7" }}>
+        <div style={{ fontWeight: 600, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+          <span>🎨</span>
+          <span>多模态预览与快捷小工具开关</span>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", fontSize: "11px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.enableImagePreview !== false}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, enableImagePreview: e.target.checked }))}
+            />
+            <span>🖼️ 图片 Base64/URL 预览</span>
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.enableJsonFormatting !== false}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, enableJsonFormatting: e.target.checked }))}
+            />
+            <span>{"{ }"} JSON 格式化与美化</span>
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.enableQRCode !== false}
+              onChange={(e) => updateSettings((prev: any) => ({ ...prev, enableQRCode: e.target.checked }))}
+            />
+            <span>📱 网址手机扫码二维码</span>
+          </label>
+        </div>
+      </div>
+
       {/* 5. 🔐 端到端零知识加密 (E2EE) */}
       <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderColor: "#8b5cf6" }}>
         <div className="flex-between">
