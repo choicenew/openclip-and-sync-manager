@@ -36,9 +36,15 @@ interface Props {
   entry: Entry;
   selectedEntryIds: Set<string>;
   isKeyboardSelected: boolean;
+  dragHandleProps?: Record<string, any>;
 }
 
-export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardSelected }) => {
+export const EntryRow: React.FC<Props> = ({
+  entry,
+  selectedEntryIds,
+  isKeyboardSelected,
+  dragHandleProps = {},
+}) => {
   const now = useNow();
   const settings = useAtomValue(settingsAtom);
   const entryIdToTags = useAtomValue(entryIdToTagsAtom) || {};
@@ -106,22 +112,15 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
     });
   };
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: entry.id,
-  });
-
   return (
     <div
-      ref={setNodeRef}
       style={{
         display: "flex",
         alignItems: "center",
         height: "32px",
         padding: "0 10px",
         borderBottom: "1px solid var(--border-color)",
-        backgroundColor: isDragging
-          ? "rgba(99, 102, 241, 0.25)"
-          : isSelected
+        backgroundColor: isSelected
           ? "rgba(79, 70, 229, 0.15)"
           : isKeyboardSelected
           ? "rgba(0, 0, 0, 0.05)"
@@ -131,9 +130,6 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
         borderLeft: isPinned ? "3px solid var(--primary-color)" : isKeyboardSelected ? "3px solid #6366f1" : "none",
         cursor: "pointer",
         userSelect: "none",
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.6 : 1,
       }}
       onClick={() => copyEntry(entry)}
       onDoubleClick={(e) => {
@@ -143,8 +139,7 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
       title="单击复制，双击编辑，长按左侧 ⠿ 可拖拽重排">
       {/* 拖拽手柄 Drag Handle */}
       <div
-        {...attributes}
-        {...listeners}
+        {...dragHandleProps}
         onClick={(e) => e.stopPropagation()}
         style={{
           display: "flex",
@@ -302,7 +297,7 @@ export const EntryRow: React.FC<Props> = ({ entry, selectedEntryIds, isKeyboardS
             style={{ fontSize: "11px", padding: "1px 5px", backgroundColor: "#0284c7", color: "#ffffff" }}
             title="点击预览 JSON 美化排版"
             onClick={handleOpenJsonFormatted}>
-            {"{ }"} JSON
+            JSON
           </button>
         )}
 

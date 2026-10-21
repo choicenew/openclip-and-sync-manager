@@ -1,15 +1,19 @@
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   arrayMove,
+  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useAtom } from "jotai";
 import React, { useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
@@ -38,6 +42,43 @@ interface Props {
   noEntriesOverlay: ReactNode;
 }
 
+const SortableEntryRowWrapper = ({
+  entry,
+  selectedEntryIds,
+  isKeyboardSelected,
+  style: virtualStyle,
+}: {
+  entry: Entry;
+  selectedEntryIds: Set<string>;
+  isKeyboardSelected: boolean;
+  style: CSSProperties;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: entry.id,
+  });
+
+  const mergedStyle: CSSProperties = {
+    ...virtualStyle,
+    transform: transform
+      ? `${virtualStyle.transform || ""} translate3d(${transform.x}px, ${transform.y}px, 0)`
+      : virtualStyle.transform,
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+    zIndex: isDragging ? 99 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={mergedStyle}>
+      <EntryRow
+        entry={entry}
+        selectedEntryIds={selectedEntryIds}
+        isKeyboardSelected={isKeyboardSelected}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
+};
+
 const EntryRowRenderer = ({
   data,
   index,
@@ -54,13 +95,12 @@ const EntryRowRenderer = ({
   const entry = data.entries[index]!;
 
   return (
-    <div style={style}>
-      <EntryRow
-        entry={entry}
-        selectedEntryIds={data.selectedEntryIds}
-        isKeyboardSelected={index === data.selectedEntryIndex}
-      />
-    </div>
+    <SortableEntryRowWrapper
+      entry={entry}
+      selectedEntryIds={data.selectedEntryIds}
+      isKeyboardSelected={index === data.selectedEntryIndex}
+      style={style}
+    />
   );
 };
 
@@ -77,6 +117,12 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   const selectedEntryIds = useSet<string>();
   const entryIdsStringified = useMemo(() => JSON.stringify(safeEntries.map(({ id }) => id)), [safeEntries]);
 
+  const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
+  const activeDragEntry = useMemo(
+    () => safeEntries.find((e) => e.id === activeDragId),
+    [safeEntries, activeDragId],
+  );
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -85,7 +131,12 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
     }),
   );
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id));
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveDragId(null);
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = safeEntries.findIndex((e) => e.id === active.id);
@@ -257,7 +308,7 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
         {safeEntries.length === 0 ? (
           noEntriesOverlay
         ) : (
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <SortableContext items={safeEntries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
               <AutoSizer>
                 {({ height, width }) => (
@@ -273,6 +324,19 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
                 )}
               </AutoSizer>
             </SortableContext>
+            <DragOverlay>
+              {activeDragEntry ? (
+                <div
+                  style={{
+                    backgroundColor: "var(--card-bg, #ffffff)",
+                    boxShadow: "0 8px 16px rgba(0,0,0,0.2)",
+                    borderRadius: "6px",
+                    border: "1px solid var(--primary-color, #6366f1)",
+                  }}>
+                  <EntryRow entry={activeDragEntry} selectedEntryIds={selectedEntryIds} isKeyboardSelected={false} />
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
         )}
       </div>

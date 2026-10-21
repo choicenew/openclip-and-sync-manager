@@ -23,13 +23,7 @@ export const AllPage: React.FC = () => {
   // 支持最新在前 (降序) / 最旧在前 (升序) / 手动拖拽固定序 (custom)
   const sortedEntries = React.useMemo(() => {
     if (settings.sortOrder === "custom") {
-      return [...entries].sort((a, b) => {
-        const aPinned = pinnedSet.has(a.id);
-        const bPinned = pinnedSet.has(b.id);
-        if (aPinned && !bPinned) return -1;
-        if (!aPinned && bPinned) return 1;
-        return 0; // 保持自定义拖拽顺序
-      });
+      return entries; // 完全按照用户手动拖拽调整的顺序显示
     }
 
     return [...entries].sort((a, b) => {

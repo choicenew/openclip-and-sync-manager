@@ -631,7 +631,7 @@ export const SettingsPage: React.FC = () => {
               checked={settings.enableJsonFormatting !== false}
               onChange={(e) => updateSettings((prev: any) => ({ ...prev, enableJsonFormatting: e.target.checked }))}
             />
-            <span>{"{ }"} JSON 格式化与美化</span>
+            <span>JSON 格式化与美化</span>
           </label>
 
           <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
