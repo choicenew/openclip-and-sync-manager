@@ -30,7 +30,7 @@ export const defaultBlacklistRules: BlacklistRule[] = [
 // DO NOT REUSE DEPRECATED FIELDS.
 export const defaultSettings = {
   sortItemsBy: ItemSortOption.Enum.DateLastCopied,
-  sortOrder: "desc" as "desc" | "asc", // "desc": 最新在前 (倒序), "asc": 最旧在前 (正序)
+  sortOrder: "desc" as "desc" | "asc" | "custom", // "desc": 最新在前 (倒序), "asc": 最旧在前 (正序), "custom": 手动拖拽序
   storageLocation: StorageLocation.Enum.Local,
   totalItemsBadge: true,
   pasteFromContextMenu: true,
@@ -100,7 +100,7 @@ export const SyncModalitiesSchema = z.object({
 export const Settings = z
   .object({
     sortItemsBy: ItemSortOption.default(defaultSettings.sortItemsBy),
-    sortOrder: z.enum(["desc", "asc"]).default(defaultSettings.sortOrder),
+    sortOrder: z.enum(["desc", "asc", "custom"]).default(defaultSettings.sortOrder),
     storageLocation: StorageLocation.default(defaultSettings.storageLocation),
     totalItemsBadge: z.boolean().default(defaultSettings.totalItemsBadge),
     pasteFromContextMenu: z.boolean().default(defaultSettings.pasteFromContextMenu),

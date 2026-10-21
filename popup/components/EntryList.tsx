@@ -85,14 +85,20 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
     }),
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = safeEntries.findIndex((e) => e.id === active.id);
       const newIndex = safeEntries.findIndex((e) => e.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
         const nextEntries = arrayMove(safeEntries, oldIndex, newIndex);
-        _setEntries(nextEntries);
+        await _setEntries(nextEntries);
+        // 拖拽重排后自动锁定为自定义手动排序模式，固定排列顺序
+        if (settings.sortOrder !== "custom") {
+          const updatedSettings = { ...settings, sortOrder: "custom" as const };
+          setSettingsState(updatedSettings);
+          await setSettings(updatedSettings);
+        }
       }
     }
   };
@@ -123,7 +129,12 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   };
 
   const handleToggleSortOrder = async () => {
-    const nextOrder = settings.sortOrder === "asc" ? "desc" : "asc";
+    const nextOrder =
+      settings.sortOrder === "desc"
+        ? "asc"
+        : settings.sortOrder === "asc"
+        ? "custom"
+        : "desc";
     const updated = { ...settings, sortOrder: nextOrder };
     setSettingsState(updated);
     await setSettings(updated);
@@ -223,12 +234,16 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
             🗑️ 删除
           </button>
 
-          {/* 自由选择正序 / 倒序排列按钮 */}
+          {/* 自由选择正序 / 倒序 / 手动固定序排列按钮 */}
           <button
             className="native-btn native-btn-sm native-btn-subtle"
-            title="点击一键切换：最新在前(降序) / 最旧在前(升序)"
+            title="点击一键切换：最新在前(降序) / 最旧在前(升序) / 手动固定序(拖拽自定义)"
             onClick={handleToggleSortOrder}>
-            {settings.sortOrder === "asc" ? "⇅ 最旧在前(升序)" : "⇅ 最新在前(降序)"}
+            {settings.sortOrder === "asc"
+              ? "⇅ 最旧在前(升序)"
+              : settings.sortOrder === "custom"
+              ? "🖐️ 手动固定序"
+              : "⇅ 最新在前(降序)"}
           </button>
         </div>
 

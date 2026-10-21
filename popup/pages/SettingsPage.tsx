@@ -561,6 +561,7 @@ export const SettingsPage: React.FC = () => {
             onChange={(e) => updateSettings((prev: any) => ({ ...prev, sortOrder: e.target.value }))}>
             <option value="desc">最新在前 (倒序，默认推荐)</option>
             <option value="asc">最旧在前 (正序)</option>
+            <option value="custom">🖐️ 手动固定序 (按拖拽自定义次序重排)</option>
           </select>
         </div>
 
