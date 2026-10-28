@@ -330,10 +330,45 @@ export const mergeCloudData = (local: CloudData, remote: CloudData): CloudData =
   };
 
   const mergeSessionsArray = (a?: any[], b?: any[]) => {
-    const map = new Map<string, any>();
-    for (const s of a || []) if (s && s.id) map.set(s.id, { ...s });
-    for (const s of b || []) if (s && s.id) map.set(s.id, { ...s });
-    return Array.from(map.values());
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const all = [...(b || []), ...(a || [])];
+    const fpMap = new Map<string, any>();
+
+    for (const s of all) {
+      if (!s || !s.id || !Array.isArray(s.tabs) || s.tabs.length === 0) continue;
+
+      // 1. 最长保留 1 个月历史 (30 天)
+      if (s.savedAt) {
+        const time = new Date(s.savedAt).getTime();
+        if (!isNaN(time) && now - time > ONE_MONTH_MS) {
+          continue;
+        }
+      }
+
+      // 2. 按标签页内容指纹自动合并完全相同的历史快照
+      const urls = s.tabs
+        .map((t: any) => (t && t.url ? t.url.trim() : ""))
+        .filter(Boolean)
+        .sort()
+        .join("|");
+      const key = urls || s.id;
+
+      const existing = fpMap.get(key);
+      if (!existing) {
+        fpMap.set(key, { ...s });
+      } else {
+        const existingTime = existing.savedAt ? new Date(existing.savedAt).getTime() : 0;
+        const currentTime = s.savedAt ? new Date(s.savedAt).getTime() : 0;
+        if (currentTime > existingTime) {
+          fpMap.set(key, { ...s });
+        }
+      }
+    }
+
+    const merged = Array.from(fpMap.values());
+    merged.sort((a, b) => new Date(b.savedAt || 0).getTime() - new Date(a.savedAt || 0).getTime());
+    return merged.slice(0, 100);
   };
 
   const mergeExtsArray = (a?: any[], b?: any[]) => {

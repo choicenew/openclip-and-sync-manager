@@ -23,16 +23,47 @@ export interface MultiModalSyncPayload extends CloudData {
   masterLock?: any;
 }
 
-/** 多设备会话 Section 去重合并 */
+/** 多设备会话 Section 去重合并 (最长保留 30 天/1 个月历史，并按标签页内容指纹自动合并完全相同的历史快照) */
 export function mergeSessions(localSessions: SyncSession[] = [], remoteSessions: SyncSession[] = []): SyncSession[] {
-  const map = new Map<string, SyncSession>();
-  for (const s of remoteSessions) {
-    if (s && s.id && s.tabs?.length > 0) map.set(s.id, s);
+  const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const allSessions = [...remoteSessions, ...localSessions];
+
+  // 用于按内容指纹去重（如果内容一模一样，保留最新时间戳的会话）
+  const fingerprintMap = new Map<string, SyncSession>();
+
+  for (const s of allSessions) {
+    if (!s || !s.id || !Array.isArray(s.tabs) || s.tabs.length === 0) continue;
+
+    // 检查保留时间，超过 30 天 (1 个月) 的历史会话自动清理淘汰
+    if (s.savedAt) {
+      const time = new Date(s.savedAt).getTime();
+      if (!isNaN(time) && now - time > ONE_MONTH_MS) {
+        continue;
+      }
+    }
+
+    // 提取标签页 URL 签名生成独一无二的内容指纹
+    const urls = s.tabs
+      .map((t) => (t && t.url ? t.url.trim() : ""))
+      .filter(Boolean)
+      .sort()
+      .join("|");
+    const key = urls || s.id;
+
+    const existing = fingerprintMap.get(key);
+    if (!existing) {
+      fingerprintMap.set(key, { ...s });
+    } else {
+      const existingTime = existing.savedAt ? new Date(existing.savedAt).getTime() : 0;
+      const currentTime = s.savedAt ? new Date(s.savedAt).getTime() : 0;
+      if (currentTime > existingTime) {
+        fingerprintMap.set(key, { ...s });
+      }
+    }
   }
-  for (const s of localSessions) {
-    if (s && s.id && s.tabs?.length > 0) map.set(s.id, s);
-  }
-  const merged = Array.from(map.values());
+
+  const merged = Array.from(fingerprintMap.values());
   merged.sort((a, b) => new Date(b.savedAt || 0).getTime() - new Date(a.savedAt || 0).getTime());
   return merged.slice(0, 100);
 }

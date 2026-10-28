@@ -54,7 +54,15 @@ const SortableEntryRow = ({
   selectedEntryIds: Set<string>;
   isKeyboardSelected: boolean;
 }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: entry.id,
   });
 
@@ -72,6 +80,7 @@ const SortableEntryRow = ({
         entry={entry}
         selectedEntryIds={selectedEntryIds}
         isKeyboardSelected={isKeyboardSelected}
+        dragHandleRef={setActivatorNodeRef}
         dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>

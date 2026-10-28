@@ -41,7 +41,7 @@ export const defaultSettings = {
   themeV2: "system",
   localItemLimit: null,
   localItemCharacterLimit: null,
-  historyRetentionDays: null,
+  historyRetentionDays: 30,
   enableCompression: true,
   enableBlacklistFilter: false,
   blacklistRules: defaultBlacklistRules,

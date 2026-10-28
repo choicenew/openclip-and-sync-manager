@@ -36,6 +36,7 @@ interface Props {
   entry: Entry;
   selectedEntryIds: Set<string>;
   isKeyboardSelected: boolean;
+  dragHandleRef?: (node: HTMLElement | null) => void;
   dragHandleProps?: Record<string, any>;
 }
 
@@ -43,6 +44,7 @@ export const EntryRow: React.FC<Props> = ({
   entry,
   selectedEntryIds,
   isKeyboardSelected,
+  dragHandleRef,
   dragHandleProps = {},
 }) => {
   const now = useNow();
@@ -149,6 +151,7 @@ export const EntryRow: React.FC<Props> = ({
       title="单击复制，双击编辑，按住左侧 ⠿ 可拖拽重排次序">
       {/* 拖拽手柄 Drag Handle */}
       <div
+        ref={dragHandleRef}
         {...dragHandleProps}
         style={{
           display: "flex",
