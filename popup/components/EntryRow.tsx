@@ -149,7 +149,7 @@ export const EntryRow: React.FC<Props> = ({
         handleOpenEdit();
       }}
       title="单击复制，双击编辑，按住左侧 ⠿ 可拖拽重排次序">
-      {/* 拖拽手柄 Drag Handle */}
+      {/* 拖拽手柄 Drag Handle (长按 150ms 或拖拽激活) */}
       <div
         ref={dragHandleRef}
         {...dragHandleProps}
@@ -157,15 +157,16 @@ export const EntryRow: React.FC<Props> = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "0 6px 0 0",
+          padding: "1px 6px 1px 0",
           cursor: "grab",
-          color: "var(--text-dimmed, #94a3b8)",
+          color: "var(--text-dimmed, #64748b)",
           fontSize: "14px",
           fontWeight: 700,
           userSelect: "none",
           touchAction: "none",
+          borderRadius: "4px",
         }}
-        title="按住拖拽自由重排次序">
+        title="长按 150ms 或按住拖拽自由重排次序">
         ⠿
       </div>
 
