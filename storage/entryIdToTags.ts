@@ -97,3 +97,14 @@ export const toggleEntryTag = async (entryId: string, tag: string) => {
 
   await _setEntryIdToTags(entryIdToTags);
 };
+
+export const addTagToEntry = async (entryId: string, tag: string) => {
+  const normalizedTag = tag.toLowerCase();
+  const entryIdToTags = await getEntryIdToTags();
+  const s = new Set(entryIdToTags[entryId] || []);
+  if (!s.has(normalizedTag)) {
+    s.add(normalizedTag);
+    entryIdToTags[entryId] = Array.from(s);
+    await _setEntryIdToTags(entryIdToTags);
+  }
+};

@@ -31,6 +31,7 @@ import { handleMutation } from "~popup/utils/mutation";
 import { addFavoriteEntryIds, deleteFavoriteEntryIds } from "~storage/favoriteEntryIds";
 import { addPinnedEntryIds, deletePinnedEntryIds } from "~storage/pinnedEntryIds";
 import { setSettings } from "~storage/settings";
+import { addTagToEntry } from "~storage/entryIdToTags";
 import type { Entry } from "~types/entry";
 import { _setEntries, deleteEntries } from "~utils/storage";
 
@@ -138,17 +139,27 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveDragId(null);
     const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = safeEntries.findIndex((e) => e.id === active.id);
-      const newIndex = safeEntries.findIndex((e) => e.id === over.id);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const nextEntries = arrayMove(safeEntries, oldIndex, newIndex);
-        await _setEntries(nextEntries);
-        // 拖拽重排后自动锁定为自定义手动排序模式，固定排列顺序
-        if (settings.sortOrder !== "custom") {
-          const updatedSettings = { ...settings, sortOrder: "custom" as const };
-          setSettingsState(updatedSettings);
-          await setSettings(updatedSettings);
+    if (over) {
+      const overId = String(over.id);
+      // 支持将卡片直接拖拽释放至 Tag 标签上完成打标
+      if (overId.startsWith("tag_")) {
+        const tagName = overId.replace("tag_", "");
+        await addTagToEntry(String(active.id), tagName);
+        return;
+      }
+
+      if (active.id !== over.id) {
+        const oldIndex = safeEntries.findIndex((e) => e.id === active.id);
+        const newIndex = safeEntries.findIndex((e) => e.id === over.id);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const nextEntries = arrayMove(safeEntries, oldIndex, newIndex);
+          await _setEntries(nextEntries);
+          // 拖拽重排后自动锁定为自定义手动排序模式，固定排列顺序
+          if (settings.sortOrder !== "custom") {
+            const updatedSettings = { ...settings, sortOrder: "custom" as const };
+            setSettingsState(updatedSettings);
+            await setSettings(updatedSettings);
+          }
         }
       }
     }

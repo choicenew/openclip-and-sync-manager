@@ -112,8 +112,20 @@ export const EntryRow: React.FC<Props> = ({
     });
   };
 
+  const handleHTML5DragStart = (e: React.DragEvent) => {
+    if (entry.content) {
+      e.dataTransfer.setData("text/plain", entry.content);
+      const encoded = encodeURIComponent(entry.content);
+      const mime = "text/markdown";
+      const filename = `openclip-${entry.id.slice(0, 8)}.md`;
+      e.dataTransfer.setData("DownloadURL", `${mime}:${filename}:data:${mime};charset=utf-8,${encoded}`);
+    }
+  };
+
   return (
     <div
+      draggable={true}
+      onDragStart={handleHTML5DragStart}
       style={{
         display: "flex",
         alignItems: "center",
@@ -136,7 +148,7 @@ export const EntryRow: React.FC<Props> = ({
         e.stopPropagation();
         handleOpenEdit();
       }}
-      title="单击复制，双击编辑，长按左侧 ⠿ 可拖拽重排">
+      title="单击复制，双击编辑，拖拽手柄 ⠿ 重排，或拖拽整个卡片至桌面/外部软件导出文件">
       {/* 拖拽手柄 Drag Handle */}
       <div
         {...dragHandleProps}
