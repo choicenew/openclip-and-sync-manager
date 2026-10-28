@@ -2,7 +2,9 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MouseSensor,
   PointerSensor,
+  closestCenter,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -59,17 +61,18 @@ const SortableEntryRow = ({
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0.3 : 1,
     zIndex: isDragging ? 99 : 1,
-    cursor: "grab",
+    touchAction: "none",
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style}>
       <EntryRow
         entry={entry}
         selectedEntryIds={selectedEntryIds}
         isKeyboardSelected={isKeyboardSelected}
+        dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>
   );
@@ -97,7 +100,12 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5,
+        distance: 2,
+      },
+    }),
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 2,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -292,7 +300,11 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
         {safeEntries.length === 0 ? (
           noEntriesOverlay
         ) : (
-          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}>
             <SortableContext items={safeEntries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {safeEntries.map((entry, index) => (

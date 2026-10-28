@@ -149,6 +149,7 @@ export const EntryRow: React.FC<Props> = ({
       title="单击复制，双击编辑，按住左侧 ⠿ 可拖拽重排次序">
       {/* 拖拽手柄 Drag Handle */}
       <div
+        {...dragHandleProps}
         style={{
           display: "flex",
           alignItems: "center",
@@ -159,6 +160,7 @@ export const EntryRow: React.FC<Props> = ({
           fontSize: "14px",
           fontWeight: 700,
           userSelect: "none",
+          touchAction: "none",
         }}
         title="按住拖拽自由重排次序">
         ⠿
