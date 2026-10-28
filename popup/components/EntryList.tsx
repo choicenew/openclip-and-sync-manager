@@ -110,19 +110,7 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 150, // 按住长按 150ms 自动激活拖拽！
-        tolerance: 5,
-      },
-    }),
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 1, // 鼠标移动 1px 亦可激活拖拽！
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 150,
-        tolerance: 5,
+        distance: 1,
       },
     }),
     useSensor(KeyboardSensor, {

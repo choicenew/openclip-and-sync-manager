@@ -149,7 +149,7 @@ export const EntryRow: React.FC<Props> = ({
         handleOpenEdit();
       }}
       title="单击复制，双击编辑，按住左侧 ⠿ 可拖拽重排次序">
-      {/* 拖拽手柄 Drag Handle (长按 150ms 或拖拽激活) */}
+      {/* 拖拽手柄 Drag Handle */}
       <div
         ref={dragHandleRef}
         {...dragHandleProps}
@@ -166,7 +166,7 @@ export const EntryRow: React.FC<Props> = ({
           touchAction: "none",
           borderRadius: "4px",
         }}
-        title="长按 150ms 或按住拖拽自由重排次序">
+        title="按住此手柄拖拽重排次序">
         ⠿
       </div>
 
