@@ -135,12 +135,6 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
         if (oldIndex !== -1 && newIndex !== -1) {
           const nextEntries = arrayMove(safeEntries, oldIndex, newIndex);
           await _setEntries(nextEntries);
-          // 拖拽重排后自动锁定为自定义手动排序模式，固定排列顺序
-          if (settings.sortOrder !== "custom") {
-            const updatedSettings = { ...settings, sortOrder: "custom" as const };
-            setSettingsState(updatedSettings);
-            await setSettings(updatedSettings);
-          }
         }
       }
     }

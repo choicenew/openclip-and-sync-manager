@@ -20,21 +20,21 @@ export const AllPage: React.FC = () => {
   const pinnedEntryIds = useAtomValue(pinnedEntryIdsAtom) || [];
   const pinnedSet = new Set(pinnedEntryIds);
 
-  // 支持最新在前 (降序) / 最旧在前 (升序) / 手动拖拽固定序 (custom)
-  const sortedEntries = React.useMemo(() => {
-    if (settings.sortOrder === "custom") {
-      return entries; // 完全按照用户手动拖拽调整的顺序显示
+  // 自然顺序：新复制内容自然置顶；随时按住 ⠿ 拖拽手动调整位置，调整结果直接保存并保留
+  const displayEntries = React.useMemo(() => {
+    let list = [...entries];
+
+    if (settings.sortOrder === "asc") {
+      list.sort((a, b) => {
+        const timeDiff = getEntryTimestamp(b, settings) - getEntryTimestamp(a, settings);
+        return -timeDiff;
+      });
     }
 
-    return [...entries].sort((a, b) => {
-      const aPinned = pinnedSet.has(a.id);
-      const bPinned = pinnedSet.has(b.id);
-      if (aPinned && !bPinned) return -1;
-      if (!aPinned && bPinned) return 1;
-
-      const timeDiff = getEntryTimestamp(b, settings) - getEntryTimestamp(a, settings);
-      return settings.sortOrder === "asc" ? -timeDiff : timeDiff;
-    });
+    // 置顶 (Pinned) 项目保持在最上方，其余按自然/拖拽顺序排列
+    const pinned = list.filter((e) => pinnedSet.has(e.id));
+    const unpinned = list.filter((e) => !pinnedSet.has(e.id));
+    return [...pinned, ...unpinned];
   }, [entries, pinnedSet, settings]);
 
   return (
@@ -49,7 +49,7 @@ export const AllPage: React.FC = () => {
           <NoEntriesOverlay title={`未找到包含 "${search}" 的记录`} />
         )
       }
-      entries={sortedEntries.filter(
+      entries={displayEntries.filter(
         (entry) =>
           search.length === 0 ||
           entry.content.toLowerCase().includes(search.toLowerCase()) ||
