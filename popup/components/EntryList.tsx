@@ -81,8 +81,10 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   const selectedEntryIds = useSet<string>();
   const entryIdsStringified = useMemo(() => JSON.stringify(safeEntries.map(({ id }) => id)), [safeEntries]);
 
-  // 原生 Pointer Capture 拖拽状态
+  // 原生 ElementFromPoint 坐标推演拖拽状态
   const [draggingIndex, setDraggingIndex] = React.useState<number | null>(null);
+  const draggingIndexRef = React.useRef<number | null>(null);
+  draggingIndexRef.current = draggingIndex;
 
   const handlePointerDownHandle = (e: React.PointerEvent, index: number) => {
     e.stopPropagation();
@@ -90,25 +92,51 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
     setDraggingIndex(index);
-  };
-
-  const handleRowPointerEnter = async (targetIndex: number) => {
-    if (draggingIndex !== null && draggingIndex !== targetIndex) {
-      const nextEntries = arrayMove(safeEntries, draggingIndex, targetIndex);
-      setDraggingIndex(targetIndex);
-      await _setEntries(nextEntries);
-    }
+    draggingIndexRef.current = index;
   };
 
   useEffect(() => {
-    const onUp = () => setDraggingIndex(null);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("mouseup", onUp);
+    const handleGlobalPointerMove = async (e: PointerEvent) => {
+      const currentDragIdx = draggingIndexRef.current;
+      if (currentDragIdx === null) return;
+
+      // 使用浏览器原生的 elementFromPoint 绕过 pointerCapture 对周围元素的屏蔽
+      const element = document.elementFromPoint(e.clientX, e.clientY);
+      const rowElement = element?.closest("[data-entry-index]");
+      if (rowElement) {
+        const targetIdxStr = rowElement.getAttribute("data-entry-index");
+        if (targetIdxStr !== null) {
+          const targetIndex = Number(targetIdxStr);
+          if (!isNaN(targetIndex) && targetIndex !== currentDragIdx) {
+            const nextEntries = arrayMove(safeEntries, currentDragIdx, targetIndex);
+            draggingIndexRef.current = targetIndex;
+            setDraggingIndex(targetIndex);
+            await _setEntries(nextEntries);
+          }
+        }
+      }
     };
-  }, []);
+
+    const handleGlobalPointerUp = (e: PointerEvent) => {
+      try {
+        if (e.currentTarget && (e.currentTarget as any).hasPointerCapture?.(e.pointerId)) {
+          (e.currentTarget as any).releasePointerCapture(e.pointerId);
+        }
+      } catch {}
+      setDraggingIndex(null);
+      draggingIndexRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handleGlobalPointerMove);
+    window.addEventListener("pointerup", handleGlobalPointerUp);
+    window.addEventListener("mouseup", handleGlobalPointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handleGlobalPointerMove);
+      window.removeEventListener("pointerup", handleGlobalPointerUp);
+      window.removeEventListener("mouseup", handleGlobalPointerUp);
+    };
+  }, [safeEntries]);
 
   useEffect(() => {
     selectedEntryIds.clear();
@@ -269,11 +297,11 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
               <EntryRow
                 key={entry.id}
                 entry={entry}
+                index={index}
                 selectedEntryIds={selectedEntryIds}
                 isKeyboardSelected={index === selectedEntryIndex}
                 isDragging={draggingIndex === index}
                 onHandlePointerDown={(e) => handlePointerDownHandle(e, index)}
-                onRowPointerEnter={() => handleRowPointerEnter(index)}
               />
             ))}
           </div>

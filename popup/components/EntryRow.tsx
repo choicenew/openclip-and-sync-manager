@@ -34,20 +34,20 @@ import { QRCodeModalContent } from "./modals/QRCodeModalContent";
 
 interface Props {
   entry: Entry;
+  index: number;
   selectedEntryIds: Set<string>;
   isKeyboardSelected: boolean;
   isDragging?: boolean;
   onHandlePointerDown?: (e: React.PointerEvent) => void;
-  onRowPointerEnter?: (e: React.PointerEvent) => void;
 }
 
 export const EntryRow: React.FC<Props> = ({
   entry,
+  index,
   selectedEntryIds,
   isKeyboardSelected,
   isDragging = false,
   onHandlePointerDown,
-  onRowPointerEnter,
 }) => {
   const now = useNow();
   const settings = useAtomValue(settingsAtom);
@@ -128,7 +128,7 @@ export const EntryRow: React.FC<Props> = ({
 
   return (
     <div
-      onPointerEnter={(e) => onRowPointerEnter?.(e)}
+      data-entry-index={index}
       style={{
         display: "flex",
         alignItems: "center",
