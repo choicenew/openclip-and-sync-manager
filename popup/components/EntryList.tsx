@@ -59,17 +59,17 @@ const SortableEntryRow = ({
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.3 : 1,
+    opacity: isDragging ? 0.4 : 1,
     zIndex: isDragging ? 99 : 1,
+    cursor: "grab",
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <EntryRow
         entry={entry}
         selectedEntryIds={selectedEntryIds}
         isKeyboardSelected={isKeyboardSelected}
-        dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>
   );
@@ -97,7 +97,7 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 3,
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor, {

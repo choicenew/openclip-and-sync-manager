@@ -149,8 +149,6 @@ export const EntryRow: React.FC<Props> = ({
       title="单击复制，双击编辑，按住左侧 ⠿ 可拖拽重排次序">
       {/* 拖拽手柄 Drag Handle */}
       <div
-        {...dragHandleProps}
-        onClick={(e) => e.stopPropagation()}
         style={{
           display: "flex",
           alignItems: "center",
@@ -161,7 +159,6 @@ export const EntryRow: React.FC<Props> = ({
           fontSize: "14px",
           fontWeight: 700,
           userSelect: "none",
-          touchAction: "none",
         }}
         title="按住拖拽自由重排次序">
         ⠿
@@ -169,6 +166,7 @@ export const EntryRow: React.FC<Props> = ({
 
       {/* 选中 Checkbox */}
       <div
+        onPointerDown={(e) => e.stopPropagation()}
         style={{
           display: "flex",
           alignItems: "center",
@@ -190,6 +188,7 @@ export const EntryRow: React.FC<Props> = ({
         <input
           type="checkbox"
           checked={isSelected}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
           onChange={(e) => {
@@ -289,6 +288,7 @@ export const EntryRow: React.FC<Props> = ({
       {/* 快捷操作区 */}
       <div
         style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "8px", flexShrink: 0 }}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}>
         {/* HTML5 拖拽导出本地文件按钮 */}
         <span
