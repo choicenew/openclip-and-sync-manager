@@ -1,8 +1,8 @@
 import {
   DndContext,
   DragOverlay,
-  MouseSensor,
-  TouchSensor,
+  KeyboardSensor,
+  PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -11,14 +11,13 @@ import {
 import {
   SortableContext,
   arrayMove,
+  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAtom } from "jotai";
-import React, { useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
-import AutoSizer from "react-virtualized-auto-sizer";
-import { FixedSizeList } from "react-window";
+import React, { useEffect, useMemo, type ReactNode } from "react";
 
 import { useEntryListNavigation } from "~popup/hooks/useEntryListNavigation";
 import { useSet } from "~popup/hooks/useSet";
@@ -44,33 +43,28 @@ interface Props {
   noEntriesOverlay: ReactNode;
 }
 
-const SortableEntryRowWrapper = ({
+const SortableEntryRow = ({
   entry,
   selectedEntryIds,
   isKeyboardSelected,
-  style: virtualStyle,
 }: {
   entry: Entry;
   selectedEntryIds: Set<string>;
   isKeyboardSelected: boolean;
-  style: CSSProperties;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
   });
 
-  const mergedStyle: CSSProperties = {
-    ...virtualStyle,
-    transform: transform
-      ? `${virtualStyle.transform || ""} translate3d(${transform.x}px, ${transform.y}px, 0)`
-      : virtualStyle.transform,
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.3 : 1,
     zIndex: isDragging ? 99 : 1,
   };
 
   return (
-    <div ref={setNodeRef} style={mergedStyle}>
+    <div ref={setNodeRef} style={style}>
       <EntryRow
         entry={entry}
         selectedEntryIds={selectedEntryIds}
@@ -78,31 +72,6 @@ const SortableEntryRowWrapper = ({
         dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>
-  );
-};
-
-const EntryRowRenderer = ({
-  data,
-  index,
-  style,
-}: {
-  data: {
-    entries: Entry[];
-    selectedEntryIds: Set<string>;
-    selectedEntryIndex: number;
-  };
-  index: number;
-  style: CSSProperties;
-}) => {
-  const entry = data.entries[index]!;
-
-  return (
-    <SortableEntryRowWrapper
-      entry={entry}
-      selectedEntryIds={data.selectedEntryIds}
-      isKeyboardSelected={index === data.selectedEntryIndex}
-      style={style}
-    />
   );
 };
 
@@ -126,16 +95,13 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   );
 
   const sensors = useSensors(
-    useSensor(MouseSensor, {
+    useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 2,
+        distance: 3,
       },
     }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 100,
-        tolerance: 5,
-      },
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
 
@@ -322,25 +288,22 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
       </div>
 
       {/* 主列表滚动区域 */}
-      <div style={{ flex: 1, position: "relative" }}>
+      <div style={{ flex: 1, position: "relative", overflowY: "auto" }}>
         {safeEntries.length === 0 ? (
           noEntriesOverlay
         ) : (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <SortableContext items={safeEntries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-              <AutoSizer>
-                {({ height, width }) => (
-                  <FixedSizeList
-                    ref={listRef}
-                    height={height}
-                    width={width}
-                    itemData={{ entries: safeEntries, selectedEntryIds, selectedEntryIndex }}
-                    itemCount={safeEntries.length}
-                    itemSize={33}>
-                    {EntryRowRenderer}
-                  </FixedSizeList>
-                )}
-              </AutoSizer>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {safeEntries.map((entry, index) => (
+                  <SortableEntryRow
+                    key={entry.id}
+                    entry={entry}
+                    selectedEntryIds={selectedEntryIds}
+                    isKeyboardSelected={index === selectedEntryIndex}
+                  />
+                ))}
+              </div>
             </SortableContext>
             <DragOverlay>
               {activeDragEntry ? (
