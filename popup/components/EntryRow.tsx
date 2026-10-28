@@ -124,8 +124,6 @@ export const EntryRow: React.FC<Props> = ({
 
   return (
     <div
-      draggable={true}
-      onDragStart={handleHTML5DragStart}
       style={{
         display: "flex",
         alignItems: "center",
@@ -148,7 +146,7 @@ export const EntryRow: React.FC<Props> = ({
         e.stopPropagation();
         handleOpenEdit();
       }}
-      title="单击复制，双击编辑，拖拽手柄 ⠿ 重排，或拖拽整个卡片至桌面/外部软件导出文件">
+      title="单击复制，双击编辑，按住左侧 ⠿ 可拖拽重排次序">
       {/* 拖拽手柄 Drag Handle */}
       <div
         {...dragHandleProps}
@@ -291,6 +289,14 @@ export const EntryRow: React.FC<Props> = ({
       <div
         style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "8px", flexShrink: 0 }}
         onClick={(e) => e.stopPropagation()}>
+        {/* HTML5 拖拽导出本地文件按钮 */}
+        <span
+          draggable={true}
+          onDragStart={handleHTML5DragStart}
+          style={{ cursor: "grab", fontSize: "11px", padding: "1px 4px", borderRadius: "4px", backgroundColor: "rgba(0,0,0,0.05)" }}
+          title="按住此 📄 图标拖拽至桌面或外部软件，自动生成导出 Markdown/文本文件">
+          📄
+        </span>
         {/* 多模态功能：图片预览 */}
         {contentAnalysis.isImage && settings.enableImagePreview !== false && (
           <button
