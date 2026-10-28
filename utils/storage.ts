@@ -26,6 +26,7 @@ import { StorageLocation } from "~types/storageLocation";
 import { resolveCloudSettings } from "./cloudSettings";
 import db from "./db/core";
 import { applyLocalItemLimit, getEntryTimestamp } from "./entries";
+import { triggerClipboardAutomation } from "./automation/webhook";
 
 // Do not change this without a migration.
 const ENTRIES_STORAGE_KEY = "entryIdSetentries";
@@ -160,6 +161,9 @@ export const createEntry = async (
     deletePinnedEntryIds(deletedEntryIds),
     deleteEntryCommands(deletedEntryIds),
   ]);
+
+  // 异步触发剪贴板自动化规则与 Webhook
+  triggerClipboardAutomation(content).catch((e) => console.error(e));
 
   return Ok(null);
 };

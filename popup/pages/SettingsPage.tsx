@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getAutomationRules, setAutomationRules } from "~storage/automationRules";
 import { getMasterDeviceState, setMasterDeviceState, type MasterDeviceState } from "~storage/masterDevice";
 import { getSettings, setSettings, type Settings } from "~storage/settings";
 import { getSessionNameTemplate, setSessionNameTemplate } from "~storage/syncedSessions";
@@ -85,15 +86,25 @@ export const SettingsPage: React.FC = () => {
     "{YYYY}-{MM}-{DD} {HH}:{mm} - {deviceName} ({tabCount} 标签)",
   );
 
+  const [automationRules, setAutomationRulesState] = useState<any[]>([]);
+  const [newAutoName, setNewAutoName] = useState("");
+  const [newAutoPattern, setNewAutoPattern] = useState("");
+  const [newAutoWebhook, setNewAutoWebhook] = useState("");
+
   useEffect(() => {
-    Promise.all([getSyncSettings(), getSettings(), getMasterDeviceState(), getSessionNameTemplate()]).then(
-      ([sSet, st, mState, tpl]) => {
-        setSyncSet(sSet);
-        setSet(st);
-        setMasterState(mState);
-        setSessionTemplateState(tpl);
-      },
-    );
+    Promise.all([
+      getSyncSettings(),
+      getSettings(),
+      getMasterDeviceState(),
+      getSessionNameTemplate(),
+      getAutomationRules(),
+    ]).then(([sSet, st, mState, tpl, autoRules]) => {
+      setSyncSet(sSet);
+      setSet(st);
+      setMasterState(mState);
+      setSessionTemplateState(tpl);
+      setAutomationRulesState(autoRules || []);
+    });
   }, []);
 
   const updateSettings = (updater: (prev: Settings) => Settings) => {
@@ -174,8 +185,9 @@ export const SettingsPage: React.FC = () => {
       setSettings(settings),
       setMasterDeviceState(masterState),
       setSessionNameTemplate(sessionNameTemplate),
+      setAutomationRules(automationRules),
     ]);
-    showToast("全部设置与会话规则已保存！");
+    showToast("全部设置与自动化规则已保存！");
   };
 
   const handleTriggerSync = async () => {
@@ -809,6 +821,109 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* 8. ⚡ 剪贴板自动化规则与 HTTP Webhook 管道 */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderColor: "#f59e0b" }}>
+        <div className="flex-between">
+          <div style={{ fontWeight: 600, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>⚡</span>
+            <span>剪贴板自动化正则规则与 HTTP Webhook 管道</span>
+          </div>
+        </div>
+
+        <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
+          配置正则匹配规则。当新拷贝文本包含特定的模式（如手机号/订单号/URL/密钥）时，自动向指定 HTTP(S) 地址发送 Webhook 请求，实现跨系统自动化联动。
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+          {automationRules.map((rule: any) => (
+            <div key={rule.id} className="native-card-subtle" style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <div className="flex-between">
+                <div style={{ fontWeight: 600, fontSize: "11px", color: "var(--primary-color)" }}>{rule.name}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!rule.enabled}
+                      onChange={(e) => {
+                        const updated = automationRules.map((r: any) => (r.id === rule.id ? { ...r, enabled: e.target.checked } : r));
+                        setAutomationRulesState(updated);
+                        setAutomationRules(updated);
+                      }}
+                    />
+                    <span>{rule.enabled ? "已启用" : "已停用"}</span>
+                  </label>
+                  <button
+                    className="native-btn native-btn-sm"
+                    style={{ backgroundColor: "#ef4444" }}
+                    onClick={() => {
+                      const updated = automationRules.filter((r: any) => r.id !== rule.id);
+                      setAutomationRulesState(updated);
+                      setAutomationRules(updated);
+                    }}>
+                    删除
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ fontSize: "10px", fontFamily: "monospace", color: "#64748b" }}>
+                正则: <span style={{ color: "#0284c7" }}>/{rule.pattern}/i</span> | URL: <span style={{ color: "#10b981" }}>{rule.webhookUrl || "未配置地址"}</span>
+              </div>
+            </div>
+          ))}
+
+          {/* 新增自动化规则框 */}
+          <div className="native-card-subtle" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 600 }}>+ 新增自动化 Webhook 规则:</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+              <input
+                type="text"
+                className="native-input"
+                placeholder="规则名称 (如 订单号通知)..."
+                value={newAutoName}
+                onChange={(e) => setNewAutoName(e.target.value)}
+              />
+              <input
+                type="text"
+                className="native-input"
+                placeholder="匹配正则 (如 (SF|YT)\d{10})..."
+                value={newAutoPattern}
+                onChange={(e) => setNewAutoPattern(e.target.value)}
+              />
+            </div>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <input
+                type="text"
+                className="native-input flex-1"
+                placeholder="Webhook 接口地址 (https://api.my-server.com/webhook)..."
+                value={newAutoWebhook}
+                onChange={(e) => setNewAutoWebhook(e.target.value)}
+              />
+              <button
+                className="native-btn native-btn-sm"
+                onClick={() => {
+                  if (!newAutoName.trim() || !newAutoPattern.trim() || !newAutoWebhook.trim()) return;
+                  const newRule = {
+                    id: "auto_" + Date.now(),
+                    name: newAutoName.trim(),
+                    pattern: newAutoPattern.trim(),
+                    webhookUrl: newAutoWebhook.trim(),
+                    method: "POST" as const,
+                    enabled: true,
+                  };
+                  const updated = [...automationRules, newRule];
+                  setAutomationRulesState(updated);
+                  setAutomationRules(updated);
+                  setNewAutoName("");
+                  setNewAutoPattern("");
+                  setNewAutoWebhook("");
+                }}>
+                + 添加规则
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
