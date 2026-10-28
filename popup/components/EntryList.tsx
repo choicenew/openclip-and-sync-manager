@@ -1,24 +1,4 @@
-import {
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  MouseSensor,
-  PointerSensor,
-  TouchSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { arrayMove } from "@dnd-kit/sortable";
 import { useAtom } from "jotai";
 import React, { useEffect, useMemo, type ReactNode } from "react";
 
@@ -101,49 +81,34 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
   const selectedEntryIds = useSet<string>();
   const entryIdsStringified = useMemo(() => JSON.stringify(safeEntries.map(({ id }) => id)), [safeEntries]);
 
-  const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
-  const activeDragEntry = useMemo(
-    () => safeEntries.find((e) => e.id === activeDragId),
-    [safeEntries, activeDragId],
-  );
+  // 原生 Pointer Capture 拖拽状态
+  const [draggingIndex, setDraggingIndex] = React.useState<number | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 1,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveDragId(String(event.active.id));
+  const handlePointerDownHandle = (e: React.PointerEvent, index: number) => {
+    e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+    setDraggingIndex(index);
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    setActiveDragId(null);
-    const { active, over } = event;
-    if (over) {
-      const overId = String(over.id);
-      // 支持将卡片直接拖拽释放至 Tag 标签上完成打标
-      if (overId.startsWith("tag_")) {
-        const tagName = overId.replace("tag_", "");
-        await addTagToEntry(String(active.id), tagName);
-        return;
-      }
-
-      if (active.id !== over.id) {
-        const oldIndex = safeEntries.findIndex((e) => e.id === active.id);
-        const newIndex = safeEntries.findIndex((e) => e.id === over.id);
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const nextEntries = arrayMove(safeEntries, oldIndex, newIndex);
-          await _setEntries(nextEntries);
-        }
-      }
+  const handleRowPointerEnter = async (targetIndex: number) => {
+    if (draggingIndex !== null && draggingIndex !== targetIndex) {
+      const nextEntries = arrayMove(safeEntries, draggingIndex, targetIndex);
+      setDraggingIndex(targetIndex);
+      await _setEntries(nextEntries);
     }
   };
+
+  useEffect(() => {
+    const onUp = () => setDraggingIndex(null);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
 
   useEffect(() => {
     selectedEntryIds.clear();
@@ -299,37 +264,19 @@ export const EntryList: React.FC<Props> = ({ entries = [], noEntriesOverlay }) =
         {safeEntries.length === 0 ? (
           noEntriesOverlay
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}>
-            <SortableContext items={safeEntries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {safeEntries.map((entry, index) => (
-                  <SortableEntryRow
-                    key={entry.id}
-                    entry={entry}
-                    selectedEntryIds={selectedEntryIds}
-                    isKeyboardSelected={index === selectedEntryIndex}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-            <DragOverlay>
-              {activeDragEntry ? (
-                <div
-                  style={{
-                    backgroundColor: "var(--card-bg, #ffffff)",
-                    boxShadow: "0 8px 16px rgba(0,0,0,0.2)",
-                    borderRadius: "6px",
-                    border: "1px solid var(--primary-color, #6366f1)",
-                  }}>
-                  <EntryRow entry={activeDragEntry} selectedEntryIds={selectedEntryIds} isKeyboardSelected={false} />
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {safeEntries.map((entry, index) => (
+              <EntryRow
+                key={entry.id}
+                entry={entry}
+                selectedEntryIds={selectedEntryIds}
+                isKeyboardSelected={index === selectedEntryIndex}
+                isDragging={draggingIndex === index}
+                onHandlePointerDown={(e) => handlePointerDownHandle(e, index)}
+                onRowPointerEnter={() => handleRowPointerEnter(index)}
+              />
+            ))}
+          </div>
         )}
       </div>
 

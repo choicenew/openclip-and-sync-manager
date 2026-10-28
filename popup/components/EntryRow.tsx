@@ -36,16 +36,18 @@ interface Props {
   entry: Entry;
   selectedEntryIds: Set<string>;
   isKeyboardSelected: boolean;
-  dragHandleRef?: (node: HTMLElement | null) => void;
-  dragHandleProps?: Record<string, any>;
+  isDragging?: boolean;
+  onHandlePointerDown?: (e: React.PointerEvent) => void;
+  onRowPointerEnter?: (e: React.PointerEvent) => void;
 }
 
 export const EntryRow: React.FC<Props> = ({
   entry,
   selectedEntryIds,
   isKeyboardSelected,
-  dragHandleRef,
-  dragHandleProps = {},
+  isDragging = false,
+  onHandlePointerDown,
+  onRowPointerEnter,
 }) => {
   const now = useNow();
   const settings = useAtomValue(settingsAtom);
@@ -126,13 +128,16 @@ export const EntryRow: React.FC<Props> = ({
 
   return (
     <div
+      onPointerEnter={(e) => onRowPointerEnter?.(e)}
       style={{
         display: "flex",
         alignItems: "center",
         height: "32px",
         padding: "0 10px",
         borderBottom: "1px solid var(--border-color)",
-        backgroundColor: isSelected
+        backgroundColor: isDragging
+          ? "rgba(99, 102, 241, 0.25)"
+          : isSelected
           ? "rgba(79, 70, 229, 0.15)"
           : isKeyboardSelected
           ? "rgba(0, 0, 0, 0.05)"
@@ -140,33 +145,36 @@ export const EntryRow: React.FC<Props> = ({
           ? "rgba(99, 102, 241, 0.05)"
           : "transparent",
         borderLeft: isPinned ? "3px solid var(--primary-color)" : isKeyboardSelected ? "3px solid #6366f1" : "none",
-        cursor: "pointer",
+        cursor: isDragging ? "grabbing" : "pointer",
         userSelect: "none",
+        transition: "background-color 0.15s ease",
       }}
       onClick={() => copyEntry(entry)}
       onDoubleClick={(e) => {
         e.stopPropagation();
         handleOpenEdit();
       }}
-      title="单击复制，双击编辑，按住左侧 ⠿ 可拖拽重排次序">
-      {/* 拖拽手柄 Drag Handle */}
+      title="单击复制，双击编辑，按住左侧 ⠿ 图标上下拖拽重排">
+      {/* 拖拽手柄 Drag Handle (原生 Pointer Capture 极致响应) */}
       <div
-        ref={dragHandleRef}
-        {...dragHandleProps}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onHandlePointerDown?.(e);
+        }}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           padding: "1px 6px 1px 0",
           cursor: "grab",
-          color: "var(--text-dimmed, #64748b)",
+          color: isDragging ? "#4f46e5" : "var(--text-dimmed, #64748b)",
           fontSize: "14px",
           fontWeight: 700,
           userSelect: "none",
           touchAction: "none",
           borderRadius: "4px",
         }}
-        title="按住此手柄拖拽重排次序">
+        title="按住此手柄直接上下拖拽重排">
         ⠿
       </div>
 
