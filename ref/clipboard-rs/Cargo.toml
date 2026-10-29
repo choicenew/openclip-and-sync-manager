@@ -1,0 +1,7 @@
+[package]
+name = "clipboard-rs"
+version = "0.1.5"
+edition = "2021"
+description = "Next generation cross-platform clipboard library in Rust"
+
+[dependencies]

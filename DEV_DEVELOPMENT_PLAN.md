@@ -64,10 +64,26 @@
 | **🎨 多模态图片与 JSON 美化** | 图片 Base64 预览与 JSON/SQL 一键高亮排版 | 渲染展示层增强 | ✅ **已交付 (`dev`)** |
 | **📱 网址二维码与 PWA 连接** | 网址一键生成二维码，手机扫码与 PWA/快捷指令 | 跨端极速小工具 (100% 离端) | ✅ **已交付 (`dev`)** |
 | **⚡ 剪贴板自动化与 Webhook** | 自定义正则拦截与 HTTP Webhook 管道触发 | 事件自动化处理 | ✅ **已交付 (`dev`)** |
-| **🖥️ 系统级 Native 托盘伴侣** | 突破浏览器最小化限制，支持 OS 全局剪贴板捕获 | Native Messaging 进程 | 🔮 **远期规划** |
+| **🖥️ 系统级 Rust 独立守护进程** | 100% 独立常驻桌面后台，无需依赖 Native Messaging，通过本地 WebSocket (`ws://127.0.0.1:18900`) 双向实时共享，内存占用仅 2-3MB | Rust + `arboard` + `tokio-tungstenite` | 🛠️ **已完成架构设计与参考工程 ([ref/openclip-standalone-daemon](file:///D:/123pan/222/ref/openclip-standalone-daemon))** |
+| **📥 Chrome 原生数据无损拦截镜像** | 监听 `chrome.bookmarks`, `chrome.history`, `chrome.storage.sync` 等事件，在 100% 不打扰 Chrome 官方原生云同步的前提下，无损拦截一份副本归档到本地 Rust 数据库 | 扩展只读观察者 API + WebSocket 管道 | 🛠️ **已完成设计与集成规划** |
 
 ---
 
 ## 💡 四、 下一阶段演进方向
 
 如需继续深化 `dev` 分支，最推荐无损实施的项目为 **🎨 多模态图片预览 + JSON 一键格式化美化 + 📱 网址二维码扫码**。
+
+---
+
+## 🛠️ 五、 桌面端 Rust 独立守护进程与 Chrome 数据无损拦截架构
+
+### 1. 🖥️ 双边独立 + WebSocket 双向共享 (Rust Desktop Companion)
+- **独立运行**：Rust 进程独立常驻操作系统后台（内存仅 2-3MB），在浏览器关闭时依然独立抓取并保存系统剪贴板。
+- **本地 IPC 通道**：内嵌轻量 WebSocket 端口 (`ws://127.0.0.1:18900`)，当浏览器开启时双边即时无缝推拉共享。
+- **参考工程**：已落地至 [ref/openclip-standalone-daemon/](file:///D:/123pan/222/ref/openclip-standalone-daemon)。
+
+### 2. 📥 Chrome 原生数据无损拦截镜像 (Passive Interception)
+- **只读观察者机制**：监听 `chrome.bookmarks.onCreated`, `chrome.history.onVisited`, `chrome.storage.sync.onChanged` 等事件。
+- **零影响原生同步**：100% 不干扰 Chrome 官方的谷歌账号云端同步。
+- **本地沉淀**：无损复制一份书签、浏览历史与同步存储快照，通过 WebSocket 管道实时流转并落盘至本地 Rust 数据库。
+

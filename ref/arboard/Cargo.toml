@@ -1,0 +1,8 @@
+[package]
+name = "arboard"
+version = "3.4.0"
+edition = "2021"
+description = "Cross-platform clipboard library in Rust"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
