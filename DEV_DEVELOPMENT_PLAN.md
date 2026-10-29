@@ -66,6 +66,7 @@
 | **⚡ 剪贴板自动化与 Webhook** | 自定义正则拦截与 HTTP Webhook 管道触发 | 事件自动化处理 | ✅ **已交付 (`dev`)** |
 | **🖥️ 系统级 Rust 独立守护进程** | 100% 独立常驻桌面后台，无需依赖 Native Messaging，通过本地 WebSocket (`ws://127.0.0.1:18900`) 双向实时共享，内存占用仅 2-3MB | Rust + `arboard` + `tokio-tungstenite` | 🛠️ **已完成架构设计与参考工程 ([ref/openclip-standalone-daemon](file:///D:/123pan/222/ref/openclip-standalone-daemon))** |
 | **📥 Chrome 原生数据无损拦截镜像** | 监听 `chrome.bookmarks`, `chrome.history`, `chrome.storage.sync` 等事件，在 100% 不打扰 Chrome 官方原生云同步的前提下，无损拦截一份副本归档到本地 Rust 数据库 | 扩展只读观察者 API + WebSocket 管道 | 🛠️ **已完成设计与集成规划** |
+| **📜 浏览历史去重与独立日历时间线** | 关闭写回 Chrome 原生 history 彻底防污染 + 独立日历视图 + 日内 URL 归一化去重 | 规划方案详见 [docs/HISTORY_CALENDAR_FEATURE_PLAN.md](docs/HISTORY_CALENDAR_FEATURE_PLAN.md) | 🛠️ **已完成架构设计与规划** |
 
 ---
 
