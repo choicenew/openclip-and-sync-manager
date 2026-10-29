@@ -329,7 +329,10 @@ export async function runFullSync(): Promise<{ success: boolean; message: string
       }
     }
     if (mergedHistory.length > 0 && modalities.history !== false) {
-      await importHistory(mergedHistory);
+      // 仅当用户主动开启“写入 Chrome 原生历史”时才调用 importHistory(防污染 Chrome 当天历史)
+      if (syncSet.importToBrowserHistory) {
+        await importHistory(mergedHistory);
+      }
       if (typeof chrome !== "undefined" && chrome.storage?.local) {
         await chrome.storage.local.set({ openclip_synced_history: mergedHistory });
       }

@@ -26,6 +26,8 @@ export interface SyncSettings {
   enableGist: boolean;
   enableS3: boolean;
   enableCustomRest: boolean;
+  // 历史记录是否写入 Chrome 原生历史 (默认 false, 开启会导致同步的数据填入当天的 Chrome 历史中)
+  importToBrowserHistory: boolean;
   // 各节点双向许可网格控制表：指定具体每个云端节点允许同步哪些数据模态
   providerModalities: {
     chrome: ModalityPermissions;
@@ -71,6 +73,7 @@ const DEFAULT_SYNC_SETTINGS: SyncSettings = {
   enableGist: false,
   enableS3: false,
   enableCustomRest: false,
+  importToBrowserHistory: false,
   providerModalities: {
     chrome: { ...DEFAULT_MODALITY_PERMISSIONS },
     webdav: { ...DEFAULT_MODALITY_PERMISSIONS },
@@ -136,6 +139,7 @@ export const getSyncSettings = async (): Promise<SyncSettings> => {
     enableGist: typeof val.enableGist === "boolean" ? val.enableGist : false,
     enableS3: typeof val.enableS3 === "boolean" ? val.enableS3 : false,
     enableCustomRest: typeof val.enableCustomRest === "boolean" ? val.enableCustomRest : false,
+    importToBrowserHistory: typeof val.importToBrowserHistory === "boolean" ? val.importToBrowserHistory : false,
   };
 };
 

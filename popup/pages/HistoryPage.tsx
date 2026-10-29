@@ -4,14 +4,33 @@ import { getSyncSettings, setSyncSettings } from "~storage/syncSettings";
 import { deleteHistoryUrl, exportHistory, type SyncHistoryItem } from "~utils/sync/handlers/history";
 import type { DeviceInfo } from "~utils/sync/provider";
 
+const formatDateStr = (timestamp: number): string => {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatTimeStr = (timestamp: number): string => {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
 export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) => {
-  const [historyItems, setHistoryItems] = useState<(SyncHistoryItem & { deviceId?: string; deviceName?: string })[]>([]);
+  const [historyItems, setHistoryItems] = useState<(SyncHistoryItem & { deviceId?: string; deviceName?: string; deviceIds?: string[] })[]>([]);
   const [discoveredDevices, setDiscoveredDevices] = useState<DeviceInfo[]>([]);
   const [selectedDeviceFilter, setSelectedDeviceFilter] = useState<string>("all");
+  const [selectedDateFilter, setSelectedDateFilter] = useState<string>(""); // "" 表示全量日历，格式为 YYYY-MM-DD
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [toastMsg, setToastMsg] = useState("");
+
+  // 防污染配置：是否写入 Chrome 浏览器原生 history
+  const [importToBrowserHistory, setImportToBrowserHistory] = useState(false);
 
   // 数据模态通道许可：History 允许走哪些云节点
   const [allowedProviders, setAllowedProviders] = useState({
@@ -94,6 +113,7 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
 
   const loadSettings = async () => {
     const s = await getSyncSettings();
+    setImportToBrowserHistory(s.importToBrowserHistory || false);
     const currentMods = s.providerModalities || {};
     setAllowedProviders({
       chrome: currentMods.chrome?.history ?? true,
@@ -114,6 +134,16 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3000);
+  };
+
+  const handleToggleImportToBrowserHistory = async (enabled: boolean) => {
+    await setSyncSettings({ importToBrowserHistory: enabled });
+    setImportToBrowserHistory(enabled);
+    if (enabled) {
+      showToast("⚠️ 已开启写回 Chrome：同步的旧历史记录将写入 Chrome 原生历史(带有当天时间戳)");
+    } else {
+      showToast("🟢 已开启防污染模式：同步数据仅保存在扩展内部，不会写回 Chrome 原生历史");
+    }
   };
 
   const handleToggleProvider = async (providerKey: string, allowed: boolean) => {
@@ -200,15 +230,48 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
     }
   };
 
+  // 1. 过滤：搜索词、设备过滤器与日期过滤器
   const query = (searchQuery || filterText).toLowerCase().trim();
-  const filtered = historyItems.filter((item) => {
+  const rawFiltered = historyItems.filter((item) => {
     const matchesSearch = item.url.toLowerCase().includes(query) || (item.title && item.title.toLowerCase().includes(query));
     const devs = Array.isArray((item as any).deviceIds) && (item as any).deviceIds.length > 0
       ? (item as any).deviceIds
-      : [item.deviceId || localDeviceId];
+      : [item.deviceId || "local"];
     const matchesDevice = selectedDeviceFilter === "all" || devs.includes(selectedDeviceFilter);
-    return matchesSearch && matchesDevice;
+    const itemDate = formatDateStr(item.lastVisitTime);
+    const matchesDate = !selectedDateFilter || itemDate === selectedDateFilter;
+
+    return matchesSearch && matchesDevice && matchesDate;
   });
+
+  // 2. 日内/视阈内按 URL 归一化去重合并（相同 URL 仅展示一条卡片，并智能聚合 visitCount 访问频次）
+  const deduplicatedMap = new Map<string, SyncHistoryItem & { deviceId?: string; deviceName?: string; deviceIds?: string[] }>();
+  for (const item of rawFiltered) {
+    const key = item.url;
+    const existing = deduplicatedMap.get(key);
+    const getDevs = (i: any) => (Array.isArray(i.deviceIds) && i.deviceIds.length > 0 ? i.deviceIds : [i.deviceId || "local"]);
+    const currentDevs = getDevs(item);
+
+    if (existing) {
+      const combinedDevs = Array.from(new Set([...getDevs(existing), ...currentDevs]));
+      deduplicatedMap.set(key, {
+        ...existing,
+        title: item.title || existing.title,
+        lastVisitTime: Math.max(existing.lastVisitTime || 0, item.lastVisitTime || 0),
+        visitCount: (existing.visitCount || 1) + (item.visitCount || 1),
+        deviceIds: combinedDevs,
+      });
+    } else {
+      deduplicatedMap.set(key, { ...item, deviceIds: currentDevs });
+    }
+  }
+
+  const filtered = Array.from(deduplicatedMap.values()).sort(
+    (a, b) => (b.lastVisitTime || 0) - (a.lastVisitTime || 0),
+  );
+
+  const todayStr = formatDateStr(Date.now());
+  const yesterdayStr = formatDateStr(Date.now() - 24 * 60 * 60 * 1000);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", height: "100%", overflowY: "auto" }}>
@@ -217,6 +280,70 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
           🔔 {toastMsg}
         </div>
       )}
+
+      {/* 防污染写回设置控制卡片 */}
+      <div className="native-card" style={{ padding: "8px 12px", backgroundColor: importToBrowserHistory ? "rgba(239, 68, 68, 0.05)" : "rgba(16, 185, 129, 0.05)", borderColor: importToBrowserHistory ? "#ef4444" : "#10b981" }}>
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>🛡️ 写入 Chrome 浏览器原生历史 (防污染开关):</span>
+            <span style={{ color: importToBrowserHistory ? "#ef4444" : "#10b981", fontSize: "10px" }}>
+              {importToBrowserHistory ? "⚠️ 已开启 (同步数据将打上当天时间填入 Chrome 历史)" : "🟢 已关闭 (推荐：仅扩展私有存储，绝对防污染)"}
+            </span>
+          </div>
+          <input
+            type="checkbox"
+            checked={importToBrowserHistory}
+            onChange={(e) => handleToggleImportToBrowserHistory(e.target.checked)}
+            style={{ cursor: "pointer", width: "16px", height: "16px", accentColor: "#10b981" }}
+          />
+        </label>
+      </div>
+
+      {/* 📅 独立日历时间线过滤器 */}
+      <div className="native-card" style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "8px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontWeight: 600, fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}>
+            📅 历史日历时间线视图:
+          </span>
+          {selectedDateFilter && (
+            <button
+              className="native-btn native-btn-sm native-btn-subtle"
+              onClick={() => setSelectedDateFilter("")}
+              style={{ fontSize: "10px", padding: "2px 6px" }}>
+              ✖ 清除日期限制 (查看全量)
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", fontSize: "11px" }}>
+          <button
+            className={`native-btn native-btn-sm ${!selectedDateFilter ? "" : "native-btn-subtle"}`}
+            onClick={() => setSelectedDateFilter("")}>
+            🌐 全部历史
+          </button>
+          <button
+            className={`native-btn native-btn-sm ${selectedDateFilter === todayStr ? "" : "native-btn-subtle"}`}
+            onClick={() => setSelectedDateFilter(todayStr)}>
+            📌 今天 ({todayStr})
+          </button>
+          <button
+            className={`native-btn native-btn-sm ${selectedDateFilter === yesterdayStr ? "" : "native-btn-subtle"}`}
+            onClick={() => setSelectedDateFilter(yesterdayStr)}>
+            ⏮️ 昨天 ({yesterdayStr})
+          </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
+            <span style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>按日期点选:</span>
+            <input
+              type="date"
+              className="native-input"
+              style={{ padding: "2px 6px", fontSize: "11px", cursor: "pointer" }}
+              value={selectedDateFilter}
+              onChange={(e) => setSelectedDateFilter(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* 控流面板 B: 【数据视角】浏览历史 (History) 允许同步走哪些云节点 */}
       <div className="native-card" style={{ borderColor: "var(--primary-color)", backgroundColor: "rgba(79, 70, 229, 0.02)" }}>
@@ -305,19 +432,22 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
           </button>
         </div>
         <div style={{ fontSize: "11px", color: "var(--text-dimmed)" }}>
-          已选 {selectedUrls.size} / 共 {filtered.length} 条
+          已选 {selectedUrls.size} / 共 {filtered.length} 条 (已去重)
         </div>
       </div>
 
-      {/* 历史卡片列表 (带设备来源 Tag) */}
+      {/* 历史卡片列表 (按 URL 归一化去重 & 标亮频次) */}
       <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, overflowY: "auto" }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--text-dimmed)", padding: "30px", fontSize: "12px" }}>
-            {loading ? "正在获取浏览历史记录..." : "无相关浏览历史记录"}
+            {loading ? "正在获取浏览历史记录..." : selectedDateFilter ? `在 ${selectedDateFilter} 无相关浏览记录` : "无相关浏览历史记录"}
           </div>
         ) : (
           filtered.map((item, idx) => {
             const isSelected = selectedUrls.has(item.url);
+            const dateStr = formatDateStr(item.lastVisitTime);
+            const timeStr = formatTimeStr(item.lastVisitTime);
+
             return (
               <div key={idx} className="native-card-subtle flex-between" style={{ padding: "6px 10px", backgroundColor: isSelected ? "rgba(79, 70, 229, 0.08)" : undefined }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, overflow: "hidden" }}>
@@ -336,12 +466,13 @@ export const HistoryPage: React.FC<{ searchQuery: string }> = ({ searchQuery }) 
                     />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflow: "hidden", flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                       <span>📜</span>
                       <span style={{ fontWeight: 600, fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {item.title || item.url}
                       </span>
-                      <span className="native-badge native-badge-orange">{item.visitCount} 次访问</span>
+                      <span className="native-badge native-badge-orange">🔥 {item.visitCount} 次访问</span>
+                      <span className="native-badge native-badge-green">📅 {dateStr} {timeStr}</span>
                       {item.deviceName && <span className="native-badge native-badge-blue">🏷️ {item.deviceName}</span>}
                     </div>
                     <div style={{ fontSize: "10px", color: "var(--text-dimmed)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
