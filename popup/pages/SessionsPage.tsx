@@ -242,6 +242,28 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
     showToast(`已批量在后台打开 ${opened} 个标签页！`);
   };
 
+  const groupTabsByGroup = (tabs: SyncTab[]) => {
+    const groupsMap = new Map<string, { title: string; color: string; collapsed: boolean; tabs: SyncTab[] }>();
+    const ungroupedTabs: SyncTab[] = [];
+
+    for (const t of tabs) {
+      if (t.groupTitle) {
+        const groupKey = `${t.groupTitle}_${t.groupColor || "blue"}`;
+        const existing = groupsMap.get(groupKey) || {
+          title: t.groupTitle,
+          color: t.groupColor || "blue",
+          collapsed: !!t.groupCollapsed,
+          tabs: [],
+        };
+        existing.tabs.push(t);
+        groupsMap.set(groupKey, existing);
+      } else {
+        ungroupedTabs.push(t);
+      }
+    }
+    return { groupsMap: Array.from(groupsMap.values()), ungroupedTabs };
+  };
+
   const groupTabsByWindowAndGroup = (tabs: SyncTab[]) => {
     const windowMap = new Map<number, SyncTab[]>();
     for (const t of tabs) {
