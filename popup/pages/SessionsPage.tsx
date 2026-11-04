@@ -615,20 +615,6 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                     </div>
                   ));
                 })()}
-                              {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
-                              <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {t.title}
-                              </span>
-                            </div>
-                            <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
-                              {t.url.slice(0, 35)}...
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
               </div>
             </>
           ) : (
