@@ -242,8 +242,6 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
     showToast(`已批量在后台打开 ${opened} 个标签页！`);
   };
 
-  const selectedSession = syncedSessions.find((s) => s.id === selectedSessionId) || syncedSessions[0];
-
   const groupTabsByWindowAndGroup = (tabs: SyncTab[]) => {
     const windowMap = new Map<number, SyncTab[]>();
     for (const t of tabs) {
@@ -272,17 +270,22 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
   const filterSessions = (sessions: SyncSession[]) => {
     if (!searchQuery.trim()) return sessions;
     const q = searchQuery.toLowerCase();
-    return sessions.filter((s) =>
-      s.deviceName.toLowerCase().includes(q) ||
-      (s.label && s.label.toLowerCase().includes(q)) ||
-      s.tabs.some((t) => t.title?.toLowerCase().includes(q) || t.url.toLowerCase().includes(q)),
-    );
+    return sessions.filter((s) => {
+      const sTabs = Array.isArray(s?.tabs) ? s.tabs : [];
+      return (
+        s.deviceName?.toLowerCase().includes(q) ||
+        (s.label && s.label.toLowerCase().includes(q)) ||
+        sTabs.some((t) => t.title?.toLowerCase().includes(q) || t.url?.toLowerCase().includes(q))
+      );
+    });
   };
 
   const visibleSessions = filterSessions(syncedSessions);
+  const selectedSession = syncedSessions.find((s) => s.id === selectedSessionId) || syncedSessions[0];
+  const selectedTabs = Array.isArray(selectedSession?.tabs) ? selectedSession.tabs : [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", height: "100%", overflow: "hidden", minHeight: 0 }}>
       {toastMsg && (
         <div className="native-card" style={{ backgroundColor: "var(--primary-color)", color: "#fff", padding: "6px 12px", fontSize: "11px" }}>
           🔔 {toastMsg}
@@ -359,11 +362,11 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
       </div>
 
       {/* TSM 左右双栏工作台布局 (Left: Timeline List, Right: Session Detail) */}
-      <div style={{ display: "flex", gap: "12px", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", gap: "12px", flex: 1, minHeight: 0, overflow: "hidden" }}>
         {/* 左侧：时间轴 Section 列表 */}
         <div
           className="native-card"
-          style={{ width: "260px", display: "flex", flexDirection: "column", gap: "8px", overflow: "hidden" }}>
+          style={{ width: "260px", minWidth: "260px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "8px", overflow: "hidden" }}>
           <div className="flex-between">
             <span style={{ fontWeight: 600, fontSize: "12px" }}>时间轴区段 ({visibleSessions.length})</span>
             <button className="native-btn native-btn-sm native-btn-subtle" onClick={loadData}>
@@ -389,8 +392,9 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
             {visibleSessions.map((session) => {
               const isSelected = session.id === selectedSessionId;
               const isLocal = session.id === "local_current";
-              const groupCount = new Set(session.tabs.map((t) => t.groupTitle).filter(Boolean)).size;
-              const winCount = session.windowsNumber || new Set(session.tabs.map((t) => t.windowId || 1)).size;
+              const sTabs = Array.isArray(session?.tabs) ? session.tabs : [];
+              const groupCount = new Set(sTabs.map((t) => t.groupTitle).filter(Boolean)).size;
+              const winCount = session.windowsNumber || new Set(sTabs.map((t) => t.windowId || 1)).size;
 
               return (
                 <div
@@ -410,7 +414,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                   </div>
                   <div className="flex-between" style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>
                     <span>
-                      🪟 {winCount} 窗口 · {session.tabs.length} 标签 {groupCount > 0 ? `(${groupCount}组)` : ""}
+                      🪟 {winCount} 窗口 · {sTabs.length} 标签 {groupCount > 0 ? `(${groupCount}组)` : ""}
                     </span>
                     <span>{session.savedAt ? new Date(session.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "刚刚"}</span>
                   </div>
@@ -421,7 +425,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
         </div>
 
         {/* 右侧：选中会话的树形明细面板 (按窗口与标签组清晰层级展开) */}
-        <div className="native-card" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", overflow: "hidden" }}>
+        <div className="native-card" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "10px", overflow: "hidden" }}>
           {selectedSession ? (
             <>
               <div className="flex-between" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
@@ -460,12 +464,12 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                 <div style={{ display: "flex", gap: "6px" }}>
                   <button
                     className="native-btn native-btn-sm"
-                    onClick={() => handleRestoreSession(selectedSession.tabs, true)}>
-                    □ 还原所有窗口 ({selectedSession.tabs.length} 标签)
+                    onClick={() => handleRestoreSession(selectedTabs, true)}>
+                    □ 还原所有窗口 ({selectedTabs.length} 标签)
                   </button>
                   <button
                     className="native-btn native-btn-sm native-btn-subtle"
-                    onClick={() => handleRestoreSession(selectedSession.tabs, false)}>
+                    onClick={() => handleRestoreSession(selectedTabs, false)}>
                     ➕ 追加当前窗口
                   </button>
                   {selectedSession.id !== "local_current" && (
@@ -485,8 +489,8 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                   <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "11px" }}>
                     <input
                       type="checkbox"
-                      checked={selectedSession.tabs.length > 0 && selectedTabUrls.size === selectedSession.tabs.length}
-                      onChange={() => toggleSelectAllTabs(selectedSession.tabs)}
+                      checked={selectedTabs.length > 0 && selectedTabUrls.size === selectedTabs.length}
+                      onChange={() => toggleSelectAllTabs(selectedTabs)}
                       style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
                     />
                     <span>全选标签页</span>
@@ -501,7 +505,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                   <button
                     className="native-btn native-btn-sm native-btn-subtle"
                     disabled={selectedTabUrls.size === 0}
-                    onClick={() => handleBatchCopyTabTitlesAndUrls(selectedSession.tabs)}>
+                    onClick={() => handleBatchCopyTabTitlesAndUrls(selectedTabs)}>
                     📄 复制标题+链接
                   </button>
                   <button
@@ -512,7 +516,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                   </button>
                 </div>
                 <div style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>
-                  已选 {selectedTabUrls.size} / 共 {selectedSession.tabs.length} 标签
+                  已选 {selectedTabUrls.size} / 共 {selectedTabs.length} 标签
                 </div>
               </div>
 
