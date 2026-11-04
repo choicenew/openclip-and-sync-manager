@@ -88,9 +88,62 @@ const syncLiveTabGroupsToStorage = async () => {
       }
     }
 
+    const liveGroupsArray = Array.from(groupMap.values());
     await chrome.storage.local.set({
-      openclip_live_tab_groups: Array.from(groupMap.values()),
+      openclip_live_tab_groups: liveGroupsArray,
     });
+
+    // 自动持久化备份并对重复标签组进行深度去重合并
+    if (liveGroupsArray.length > 0) {
+      chrome.storage.local.get("openclip_permanently_saved_groups", async (res) => {
+        const existingSaved: any[] = res.openclip_permanently_saved_groups || [];
+        const fpMap = new Map<string, any>();
+
+        // 建立已保存标签组的内容指纹映射
+        for (const sg of existingSaved) {
+          if (!sg || !sg.title) continue;
+          const urls = Array.isArray(sg.tabs)
+            ? sg.tabs.map((t: any) => t.url || "").filter(Boolean).sort().join("|")
+            : "";
+          const fp = `${sg.title.trim().toLowerCase()}|${urls}`;
+          fpMap.set(fp, sg);
+        }
+
+        // 增量合并当前活跃标签组，完全重复的自动合并更新，新的自动持久化保存
+        for (const lg of liveGroupsArray) {
+          if (!lg.tabs || lg.tabs.length === 0) continue;
+          const urls = lg.tabs.map((t: any) => t.url || "").filter(Boolean).sort().join("|");
+          const fp = `${lg.title.trim().toLowerCase()}|${urls}`;
+
+          const existing = fpMap.get(fp);
+          if (existing) {
+            fpMap.set(fp, {
+              ...existing,
+              title: lg.title,
+              color: lg.color,
+              tabs: lg.tabs,
+              updatedAt: new Date().toISOString(),
+            });
+          } else {
+            fpMap.set(fp, {
+              id: `saved_group_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              title: lg.title,
+              color: lg.color,
+              collapsed: lg.collapsed,
+              sourceLabel: "自动保存",
+              tabs: lg.tabs,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        }
+
+        const updatedSavedList = Array.from(fpMap.values());
+        await chrome.storage.local.set({
+          openclip_permanently_saved_groups: updatedSavedList,
+        });
+      });
+    }
   } catch (e) {
     console.warn("[Background] Sync live tab groups error:", e);
   }

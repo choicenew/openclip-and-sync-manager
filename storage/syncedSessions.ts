@@ -12,12 +12,12 @@ export async function getSyncedSessions(): Promise<SyncSession[]> {
   return data || [];
 }
 
-/** 生成 Session 的所有 Tab URL 指纹用于精准去重判断 (带上设备 ID，防止误吞其他设备的会话) */
+/** 生成 Session 的所有 Tab URL 与 WindowId 指纹用于精准去重判断 (带上设备 ID，防止误吞其他设备的会话) */
 export function getSessionTabsFingerprint(session: SyncSession): string {
   if (!session || !session.tabs) return "";
   const dev = session.deviceId || "unknown";
   return `${dev}|` + session.tabs
-    .map((t) => t.url)
+    .map((t) => `${t.windowId || 1}:${t.url}`)
     .filter(Boolean)
     .sort()
     .join("|");
@@ -96,7 +96,7 @@ export function formatSessionNameTemplate(
     .replace(/{tabCount}/g, String(tabCount));
 }
 
-/** 自动触发保存当前打开的会话时间轴快照 (含自动去重合并) */
+/** 自动触发保存当前打开的会话时间轴快照 (参考 Tab Session Manager：包含多窗口结构录制与智能变动检测去重) */
 export async function autoSaveSessionSnapshot(triggerLabel = "自动备份"): Promise<SyncSession | null> {
   try {
     const [tabs, syncSet, template] = await Promise.all([
@@ -107,8 +107,11 @@ export async function autoSaveSessionSnapshot(triggerLabel = "自动备份"): Pr
 
     if (!tabs || tabs.length === 0) return null;
 
+    const windowSet = new Set(tabs.map((t) => t.windowId || 1));
+    const windowsNumber = windowSet.size;
+
     const deviceName = syncSet.deviceName || "本机";
-    const label = `${triggerLabel}: ${formatSessionNameTemplate(template, deviceName, tabs.length)}`;
+    const label = `${triggerLabel}: ${formatSessionNameTemplate(template, deviceName, tabs.length)} (${windowsNumber} 窗口)`;
 
     const newSession: SyncSession = {
       id: `snapshot_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -116,10 +119,20 @@ export async function autoSaveSessionSnapshot(triggerLabel = "自动备份"): Pr
       deviceName: `${deviceName} (${triggerLabel})`,
       savedAt: new Date().toISOString(),
       label,
+      windowsNumber,
+      tabsCount: tabs.length,
       tabs,
     };
 
     const existing = await getSyncedSessions();
+    const newFp = getSessionTabsFingerprint(newSession);
+
+    // 智能变动检测（参考 Tab Session Manager 的 isChangedAutoSaveSession）：
+    // 如果窗口与网页没有任何变化，跳过冗余重复记录
+    if (existing.length > 0 && getSessionTabsFingerprint(existing[0]) === newFp) {
+      return existing[0];
+    }
+
     await setSyncedSessions([newSession, ...existing]);
     return newSession;
   } catch (err) {

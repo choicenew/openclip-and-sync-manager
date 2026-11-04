@@ -244,26 +244,29 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
 
   const selectedSession = syncedSessions.find((s) => s.id === selectedSessionId) || syncedSessions[0];
 
-  const groupTabsByGroup = (tabs: SyncTab[]) => {
-    const groupsMap = new Map<string, { title: string; color: string; collapsed: boolean; tabs: SyncTab[] }>();
-    const ungroupedTabs: SyncTab[] = [];
-
+  const groupTabsByWindowAndGroup = (tabs: SyncTab[]) => {
+    const windowMap = new Map<number, SyncTab[]>();
     for (const t of tabs) {
-      if (t.groupTitle) {
-        const groupKey = `${t.groupTitle}_${t.groupColor || "blue"}`;
-        const existing = groupsMap.get(groupKey) || {
-          title: t.groupTitle,
-          color: t.groupColor || "blue",
-          collapsed: !!t.groupCollapsed,
-          tabs: [],
-        };
-        existing.tabs.push(t);
-        groupsMap.set(groupKey, existing);
-      } else {
-        ungroupedTabs.push(t);
-      }
+      const wId = t.windowId || 1;
+      const list = windowMap.get(wId) || [];
+      list.push(t);
+      windowMap.set(wId, list);
     }
-    return { groupsMap: Array.from(groupsMap.values()), ungroupedTabs };
+    const result: {
+      windowId: number;
+      winTabs: SyncTab[];
+      groupsMap: { title: string; color: string; collapsed: boolean; tabs: SyncTab[] }[];
+      ungroupedTabs: SyncTab[];
+    }[] = [];
+
+    const sortedWindowIds = Array.from(windowMap.keys()).sort((a, b) => a - b);
+    for (const wId of sortedWindowIds) {
+      const winTabs = windowMap.get(wId)!;
+      const { groupsMap, ungroupedTabs } = groupTabsByGroup(winTabs);
+      result.push({ windowId: wId, winTabs, groupsMap, ungroupedTabs });
+    }
+
+    return result;
   };
 
   const filterSessions = (sessions: SyncSession[]) => {
@@ -387,6 +390,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
               const isSelected = session.id === selectedSessionId;
               const isLocal = session.id === "local_current";
               const groupCount = new Set(session.tabs.map((t) => t.groupTitle).filter(Boolean)).size;
+              const winCount = session.windowsNumber || new Set(session.tabs.map((t) => t.windowId || 1)).size;
 
               return (
                 <div
@@ -406,7 +410,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                   </div>
                   <div className="flex-between" style={{ fontSize: "10px", color: "var(--text-dimmed)" }}>
                     <span>
-                      1 窗口 - {session.tabs.length} 标签 {groupCount > 0 ? `(${groupCount}组)` : ""}
+                      🪟 {winCount} 窗口 · {session.tabs.length} 标签 {groupCount > 0 ? `(${groupCount}组)` : ""}
                     </span>
                     <span>{session.savedAt ? new Date(session.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "刚刚"}</span>
                   </div>
@@ -416,7 +420,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
           </div>
         </div>
 
-        {/* 右侧：选中会话的树形明细面板 */}
+        {/* 右侧：选中会话的树形明细面板 (按窗口与标签组清晰层级展开) */}
         <div className="native-card" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", overflow: "hidden" }}>
           {selectedSession ? (
             <>
@@ -457,7 +461,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                   <button
                     className="native-btn native-btn-sm"
                     onClick={() => handleRestoreSession(selectedSession.tabs, true)}>
-                    □ 在新窗口还原 ({selectedSession.tabs.length})
+                    □ 还原所有窗口 ({selectedSession.tabs.length} 标签)
                   </button>
                   <button
                     className="native-btn native-btn-sm native-btn-subtle"
@@ -512,16 +516,38 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                 </div>
               </div>
 
-              <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>
                 {(() => {
-                  const { groupsMap, ungroupedTabs } = groupTabsByGroup(selectedSession.tabs);
+                  const windowStructure = groupTabsByWindowAndGroup(selectedSession.tabs);
 
-                  return (
-                    <>
-                      {/* 嵌套编组的 Tab Group 块容器 (带 [💾 保存 Tab Group] 按钮) */}
-                      {groupsMap.map((g, gIdx) => (
+                  return windowStructure.map((win) => (
+                    <div
+                      key={`win_${win.windowId}`}
+                      className="native-card"
+                      style={{
+                        padding: "8px",
+                        borderColor: "var(--primary-color)",
+                        backgroundColor: "rgba(79, 70, 229, 0.02)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                      }}>
+                      <div className="flex-between" style={{ borderBottom: "1px dashed var(--border-color)", paddingBottom: "4px" }}>
+                        <span style={{ fontWeight: 600, fontSize: "12px", color: "var(--primary-color)" }}>
+                          🖥️ 窗口 #{win.windowId} ({win.winTabs.length} 个标签页)
+                        </span>
+                        <button
+                          className="native-btn native-btn-sm native-btn-subtle"
+                          style={{ fontSize: "11px", padding: "2px 6px" }}
+                          onClick={() => handleRestoreSession(win.winTabs, true)}>
+                          🪟 仅恢复此窗口
+                        </button>
+                      </div>
+
+                      {/* 嵌套编组的 Tab Group 块容器 */}
+                      {win.groupsMap.map((g, gIdx) => (
                         <div
-                          key={`group_${gIdx}`}
+                          key={`win_${win.windowId}_group_${gIdx}`}
                           className="tab-group-container"
                           style={{ borderColor: `var(--native-badge-${g.color}, var(--primary-color))` }}>
                           <div className="flex-between" style={{ marginBottom: "6px" }}>
@@ -563,10 +589,10 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                       ))}
 
                       {/* 未编组普通 Tab 列表 */}
-                      {ungroupedTabs.map((t, uIdx) => {
+                      {win.ungroupedTabs.map((t, uIdx) => {
                         const isSelected = selectedTabUrls.has(t.url);
                         return (
-                          <div key={`ungrouped_${uIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px", backgroundColor: isSelected ? "rgba(79, 70, 229, 0.08)" : undefined }}>
+                          <div key={`win_${win.windowId}_ungrouped_${uIdx}`} className="native-card-subtle flex-between" style={{ padding: "4px 8px", backgroundColor: isSelected ? "rgba(79, 70, 229, 0.08)" : undefined }}>
                             <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
                               <input
                                 type="checkbox"
@@ -575,6 +601,20 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
                                 onChange={() => toggleSelectTabUrl(t.url)}
                                 style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--primary-color)" }}
                               />
+                              {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
+                              <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {t.title}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: "10px", color: "var(--text-dimmed)", marginLeft: "8px" }}>
+                              {t.url.slice(0, 35)}...
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ));
+                })()}
                               {t.favIconUrl ? <img src={t.favIconUrl} alt="" style={{ width: "14px", height: "14px" }} /> : <span>🌐</span>}
                               <span style={{ fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {t.title}
