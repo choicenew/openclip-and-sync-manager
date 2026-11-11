@@ -151,8 +151,19 @@ const syncLiveTabGroupsToStorage = async () => {
 
 const debouncedSyncLiveTabGroups = debounce(syncLiveTabGroupsToStorage, 2000);
 
-// 挂载 Chrome 原生 Tab Groups 变动与 Tab 变动事件句柄
+// 挂载 Chrome 原生 Tab Groups 变动、Tab 变动及全局快捷键事件句柄
 if (typeof chrome !== "undefined") {
+  if (chrome.commands) {
+    chrome.commands.onCommand.addListener(async (command) => {
+      if (command === "save-current-session") {
+        try {
+          await autoSaveSessionSnapshot("快捷键保存");
+        } catch (e) {
+          console.warn("[Background] Quick save session command error:", e);
+        }
+      }
+    });
+  }
   if (chrome.tabGroups) {
     chrome.tabGroups.onCreated?.addListener(debouncedSyncLiveTabGroups);
     chrome.tabGroups.onUpdated?.addListener(debouncedSyncLiveTabGroups);
