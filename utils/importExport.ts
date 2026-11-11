@@ -76,6 +76,9 @@ export const getClipboardHistoryIOExport = async (): Promise<ClipboardHistoryIOE
   }));
 };
 
+import { getSyncedSessions, setSyncedSessions as saveSyncedSessions } from "~storage/syncedSessions";
+import type { SyncSession, SyncTab } from "~utils/sync/handlers/sessions";
+
 export const importFile = async (file: File) => {
   const text = await file.text();
   const json = JSON.parse(text);
@@ -86,7 +89,19 @@ export const importFile = async (file: File) => {
     return await importFullBackup(fullBackupParsed.data);
   }
 
-  // 2. 兼容导入
+  // 2. Tab Session Manager (TSM) JSON 会话导入
+  if (Array.isArray(json) && json.length > 0 && json[0]?.windows && json[0]?.id) {
+    const count = await importTSMBackup(json);
+    return { count, type: "tsm-sessions" };
+  }
+
+  // 3. Session Buddy JSON 会话导入
+  if (Array.isArray(json) && json.length > 0 && Array.isArray(json[0]?.windows)) {
+    const count = await importSessionBuddyBackup(json);
+    return { count, type: "session-buddy" };
+  }
+
+  // 4. 兼容导入
   const clipboardHistoryIOParsed = ClipboardHistoryIOExport.safeParse(json);
   if (clipboardHistoryIOParsed.success) {
     return await importClipboardHistoryIO(clipboardHistoryIOParsed.data);
@@ -98,6 +113,102 @@ export const importFile = async (file: File) => {
   }
 
   throw [fullBackupParsed.error, clipboardHistoryIOParsed.error, clipboardHistoryProParsed.error];
+};
+
+/** 导入 Tab Session Manager (TSM) 备份 JSON */
+export const importTSMBackup = async (data: any[]): Promise<number> => {
+  if (!Array.isArray(data)) return 0;
+  const sessions: SyncSession[] = [];
+
+  for (const s of data) {
+    if (!s || typeof s !== "object") continue;
+    const tabs: SyncTab[] = [];
+    const windowKeys = Object.keys(s.windows || {});
+
+    for (let wIdx = 0; wIdx < windowKeys.length; wIdx++) {
+      const winIdStr = windowKeys[wIdx]!;
+      const winTabs = s.windows[winIdStr];
+      if (!winTabs || typeof winTabs !== "object") continue;
+
+      for (const tKey of Object.keys(winTabs)) {
+        const t = winTabs[tKey];
+        if (t && typeof t.url === "string" && t.url.startsWith("http")) {
+          tabs.push({
+            url: t.url,
+            title: t.title || t.url,
+            pinned: !!t.pinned,
+            favIconUrl: t.favIconUrl,
+            windowId: wIdx + 1,
+          });
+        }
+      }
+    }
+
+    if (tabs.length > 0) {
+      sessions.push({
+        id: `tsm_import_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        deviceId: "TSM Import",
+        deviceName: "Tab Session Manager 导入",
+        savedAt: typeof s.date === "number" ? new Date(s.date).toISOString() : new Date().toISOString(),
+        label: s.name || `TSM 导入会话 (${tabs.length} 标签页)`,
+        windowsNumber: windowKeys.length || 1,
+        tabsCount: tabs.length,
+        tabs,
+      });
+    }
+  }
+
+  if (sessions.length > 0) {
+    const existing = await getSyncedSessions();
+    await saveSyncedSessions([...sessions, ...existing]);
+  }
+  return sessions.length;
+};
+
+/** 导入 Session Buddy 备份 JSON */
+export const importSessionBuddyBackup = async (data: any[]): Promise<number> => {
+  if (!Array.isArray(data)) return 0;
+  const sessions: SyncSession[] = [];
+
+  for (const s of data) {
+    if (!s || !Array.isArray(s.windows)) continue;
+    const tabs: SyncTab[] = [];
+
+    for (let wIdx = 0; wIdx < s.windows.length; wIdx++) {
+      const win = s.windows[wIdx];
+      if (!Array.isArray(win)) continue;
+
+      for (const t of win) {
+        if (t && typeof t.url === "string" && t.url.startsWith("http")) {
+          tabs.push({
+            url: t.url,
+            title: t.title || t.url,
+            pinned: false,
+            windowId: wIdx + 1,
+          });
+        }
+      }
+    }
+
+    if (tabs.length > 0) {
+      sessions.push({
+        id: `sb_import_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        deviceId: "Session Buddy Import",
+        deviceName: "Session Buddy 导入",
+        savedAt: typeof s.created === "number" ? new Date(s.created).toISOString() : new Date().toISOString(),
+        label: s.title || `Session Buddy 导入 (${tabs.length} 标签页)`,
+        windowsNumber: s.windows.length || 1,
+        tabsCount: tabs.length,
+        tabs,
+      });
+    }
+  }
+
+  if (sessions.length > 0) {
+    const existing = await getSyncedSessions();
+    await saveSyncedSessions([...sessions, ...existing]);
+  }
+  return sessions.length;
 };
 
 const importFullBackup = async (backup: FullBackup) => {
