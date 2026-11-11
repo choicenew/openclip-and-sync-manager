@@ -280,16 +280,17 @@ async function runTests() {
   assert(parsedSB[0]?.tabs.length === 2, "Session Buddy 导入会话正确捕获了 2 个网页标签");
 
   // -------------------------------------------------------------
-  // 测试 5: 验证 Manifest 快捷键绑定与 package.json 版本定义
+  // 测试 5: 验证 Chrome Manifest V3 4个建议快捷键上限合规与 package.json 版本
   // -------------------------------------------------------------
   const pkgPath = path.join(__dirname, "..", "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
-  assert(pkg.version === "2.7.69", `package.json 当前版本号确认为 v${pkg.version}`);
-  assert(
-    pkg.manifest?.commands?.["save-current-session"]?.suggested_key?.default === "Alt+Shift+S",
-    "Manifest 已成功绑定 Alt+Shift+S 全局会话快照快捷键命令",
-  );
+  assert(pkg.version === "2.7.70", `package.json 当前版本号确认为 v${pkg.version}`);
+
+  const commands = pkg.manifest?.commands || {};
+  const suggestedKeysCount = Object.values(commands).filter((cmd: any) => cmd.suggested_key).length;
+  assert(suggestedKeysCount <= 4, `Chrome 建议快捷键数量为 ${suggestedKeysCount} 个 (符合 Chrome V3 限制 <= 4)`);
+  assert(!!commands["save-current-session"], "Manifest 已合法注册 save-current-session 会话快照快捷键命令");
 
   console.log("\n🎉 所有 7 项全量核心与配置测试用例 100% 顺利通过！\n");
 }

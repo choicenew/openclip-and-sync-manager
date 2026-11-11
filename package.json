@@ -2,7 +2,7 @@
   "packageManager": "pnpm@8.15.9",
   "name": "openclip-sync",
   "displayName": "OpenClip Sync - Fast, Secure & Multi-Device Clipboard Manager",
-  "version": "2.7.69",
+  "version": "2.7.70",
   "description": "Powerful multi-device clipboard manager with WebDAV, Chrome Sync, content deduplication and tags.",
   "author": "Open Source Community",
   "scripts": {
@@ -114,9 +114,6 @@
         }
       },
       "save-current-session": {
-        "suggested_key": {
-          "default": "Alt+Shift+S"
-        },
         "description": "Quick Save Current Session Snapshot"
       }
     }
