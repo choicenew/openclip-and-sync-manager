@@ -20,6 +20,11 @@ export interface SyncWindowInfo {
   windowId: number;
   tabsCount: number;
   groupsCount?: number;
+  width?: number;
+  height?: number;
+  left?: number;
+  top?: number;
+  state?: "normal" | "minimized" | "maximized" | "fullscreen";
 }
 
 export interface SyncSession {
@@ -94,20 +99,40 @@ export async function exportCurrentTabs(): Promise<SyncTab[]> {
   }
 }
 
-/** 打包当前设备打开的所有窗口与标签页会话 (记录多窗口元数据) */
+/** 打包当前设备打开的所有窗口与标签页会话 (记录多窗口元数据及屏幕位置/尺寸信息) */
 export async function exportSession(deviceId: string, deviceName: string, label?: string): Promise<SyncSession> {
   const tabs = await exportCurrentTabs();
   const windowSet = new Set(tabs.map((t) => t.windowId || 1));
   const windowsNumber = windowSet.size;
 
-  const windowsInfo: SyncWindowInfo[] = Array.from(windowSet).sort((a, b) => a - b).map((wId) => {
-    const wTabs = tabs.filter((t) => (t.windowId || 1) === wId);
-    return {
-      windowId: wId,
-      tabsCount: wTabs.length,
-      groupsCount: new Set(wTabs.map((t) => t.groupTitle).filter(Boolean)).size,
-    };
-  });
+  let windowDetailsMap = new Map<number, chrome.windows.Window>();
+  if (typeof chrome !== "undefined" && chrome.windows) {
+    try {
+      const wins = await chrome.windows.getAll();
+      for (const w of wins) {
+        if (w.id !== undefined) windowDetailsMap.set(w.id, w);
+      }
+    } catch (e) {
+      console.warn("[SessionsHandler] Failed to query windows metadata:", e);
+    }
+  }
+
+  const windowsInfo: SyncWindowInfo[] = Array.from(windowSet)
+    .sort((a, b) => a - b)
+    .map((wId) => {
+      const wTabs = tabs.filter((t) => (t.windowId || 1) === wId);
+      const rawWin = Array.from(windowDetailsMap.values())[wId - 1];
+      return {
+        windowId: wId,
+        tabsCount: wTabs.length,
+        groupsCount: new Set(wTabs.map((t) => t.groupTitle).filter(Boolean)).size,
+        width: rawWin?.width,
+        height: rawWin?.height,
+        left: rawWin?.left,
+        top: rawWin?.top,
+        state: rawWin?.state as any,
+      };
+    });
 
   return {
     id: `session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
