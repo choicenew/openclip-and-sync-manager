@@ -133,7 +133,7 @@ export function mergeHistory(
 
 /** 多设备扩展列表合并 (多设备 ID 数组累加) */
 export function mergeExtensions(localExts: SyncExtension[] = [], remoteExts: SyncExtension[] = []): SyncExtension[] {
-  const map = new Map<string, SyncExtension>();
+  const map = new Map<string, any>();
   const getDevIds = (item: any): string[] => {
     if (Array.isArray(item.deviceIds) && item.deviceIds.length > 0) return item.deviceIds;
     if (item.deviceId) return [item.deviceId];
@@ -151,7 +151,7 @@ export function mergeExtensions(localExts: SyncExtension[] = [], remoteExts: Syn
       map.set(e.id, existing ? { ...existing, ...e, deviceId: existing.deviceId || (e as any).deviceId, deviceName: existing.deviceName || (e as any).deviceName, deviceIds: combinedDevs } : { ...e, deviceIds: localDevs });
     }
   }
-  return Array.from(map.values());
+  return Array.from(map.values()) as SyncExtension[];
 }
 
 /** 打包本地全模态同步数据 */
