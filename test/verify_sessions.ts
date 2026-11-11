@@ -1,7 +1,10 @@
 /**
  * test/verify_sessions.ts
- * 自动化单元与集成测试套件：验证多窗口会话导出、指纹去重、30天TTL清理、TSM/Session Buddy导入解析
+ * 自动化单元与集成测试套件：验证多窗口会话导出、指纹去重、30天TTL清理、TSM/Session Buddy导入解析、快捷键绑定与版本验证
  */
+
+import fs from "fs";
+import path from "path";
 
 export interface SyncTab {
   url: string;
@@ -169,7 +172,7 @@ function assert(condition: boolean, message: string) {
 }
 
 async function runTests() {
-  console.log("\n🧪 正在运行 OpenClip Sync 会话模块全量自动化测试...\n");
+  console.log("\n🧪 正在运行 OpenClip Sync 全量功能与环境验证测试...\n");
 
   // -------------------------------------------------------------
   // 测试 1: 验证多窗口会话指纹计算 (getSessionTabsFingerprint)
@@ -197,9 +200,9 @@ async function runTests() {
   // 测试 2: 验证重复会话自动合并与 30 天 TTL 淘汰 (mergeSessions)
   // -------------------------------------------------------------
   const now = Date.now();
-  const oldDate = new Date(now - 35 * 24 * 60 * 60 * 1000).toISOString(); // 35 天前 (应淘汰)
-  const recentDate1 = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(); // 2 天前
-  const recentDate2 = new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(); // 1 天前 (较新)
+  const oldDate = new Date(now - 35 * 24 * 60 * 60 * 1000).toISOString();
+  const recentDate1 = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString();
+  const recentDate2 = new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString();
 
   const expiredSession: SyncSession = {
     id: "expired_1",
@@ -227,15 +230,12 @@ async function runTests() {
 
   const merged = mergeSessions([localDup1, expiredSession], [remoteDup2]);
 
-  // 验证超过 30 天的已过期会话被自动清理
   assert(!merged.some((s) => s.id === "expired_1"), "超过 30 天的旧会话已成功自动清理淘汰");
-
-  // 验证相同内容快照去重合并，只保留最新时间的快照
   assert(merged.length === 1, "相同内容的重复会话已成功合并为 1 条");
   assert(merged[0]?.savedAt === recentDate2, "去重合并后成功保留了最新的 savedAt 时间戳");
 
   // -------------------------------------------------------------
-  // 测试 3: 验证 Tab Session Manager (TSM) JSON 会话导入解析 (parseTSMBackup)
+  // 测试 3: 验证 Tab Session Manager (TSM) JSON 会话导入解析
   // -------------------------------------------------------------
   const sampleTSMJson = [
     {
@@ -260,7 +260,7 @@ async function runTests() {
   assert(parsedTSM[0]?.tabs.length === 3, "TSM 导入会话正确捕获了 3 个网页标签");
 
   // -------------------------------------------------------------
-  // 测试 4: 验证 Session Buddy JSON 会话导入解析 (parseSessionBuddyBackup)
+  // 测试 4: 验证 Session Buddy JSON 会话导入解析
   // -------------------------------------------------------------
   const sampleSessionBuddyJson = [
     {
@@ -279,7 +279,19 @@ async function runTests() {
   assert(parsedSB.length === 1, "Session Buddy JSON 样例文件导入测试成功，正确解析为 1 个会话");
   assert(parsedSB[0]?.tabs.length === 2, "Session Buddy 导入会话正确捕获了 2 个网页标签");
 
-  console.log("\n🎉 所有 6 项核心测试用例全部顺利通过！OpenClip Sync 会话与导入模块 100% 正常运行！\n");
+  // -------------------------------------------------------------
+  // 测试 5: 验证 Manifest 快捷键绑定与 package.json 版本定义
+  // -------------------------------------------------------------
+  const pkgPath = path.join(__dirname, "..", "package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+
+  assert(pkg.version === "2.7.69", `package.json 当前版本号确认为 v${pkg.version}`);
+  assert(
+    pkg.manifest?.commands?.["save-current-session"]?.suggested_key?.default === "Alt+Shift+S",
+    "Manifest 已成功绑定 Alt+Shift+S 全局会话快照快捷键命令",
+  );
+
+  console.log("\n🎉 所有 7 项全量核心与配置测试用例 100% 顺利通过！\n");
 }
 
 runTests().catch((err) => {
