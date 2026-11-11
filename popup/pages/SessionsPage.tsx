@@ -265,8 +265,9 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
   };
 
   const groupTabsByWindowAndGroup = (tabs: SyncTab[]) => {
+    const safeTabs = Array.isArray(tabs) ? tabs : [];
     const windowMap = new Map<number, SyncTab[]>();
-    for (const t of tabs) {
+    for (const t of safeTabs) {
       const wId = t.windowId || 1;
       const list = windowMap.get(wId) || [];
       list.push(t);
@@ -544,7 +545,7 @@ export const SessionsPage: React.FC<Props> = ({ searchQuery = "" }) => {
 
               <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>
                 {(() => {
-                  const windowStructure = groupTabsByWindowAndGroup(selectedSession.tabs);
+                  const windowStructure = groupTabsByWindowAndGroup(selectedTabs);
 
                   return windowStructure.map((win) => (
                     <div
